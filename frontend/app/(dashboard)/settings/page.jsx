@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
+import { settingsAPI } from '../../../lib/api';
 import toast from 'react-hot-toast';
 
   const roleOptions = [
