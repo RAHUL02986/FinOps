@@ -1,16 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { expensesAPI } from '../lib/api';
+import { expensesAPI, categoriesAPI } from '../lib/api';
 
-const CATEGORIES = [
-  'Food & Dining', 'Transportation', 'Housing', 'Entertainment',
-  'Healthcare', 'Shopping', 'Education', 'Utilities', 'Travel', 'Other',
-];
+
 
 export default function ExpenseForm({ expense, onClose, users = null, defaultUserId = '' }) {
+  const [categories, setCategories] = useState([]);
   const today = new Date().toISOString().split('T')[0];
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await categoriesAPI.getAll();
+        setCategories(res.data.filter((c) => c.active));
+      } catch {
+        setCategories([]);
+      }
+    };
+    fetchCategories();
+  }, []);
   const [form, setForm] = useState({
     amount: expense?.amount ?? '',
     category: expense?.category ?? '',
@@ -100,7 +110,9 @@ export default function ExpenseForm({ expense, onClose, users = null, defaultUse
             <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
             <select name="category" required value={form.category} onChange={handleChange} className="input">
               <option value="">Select a category</option>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {categories.map((c) => (
+                <option key={c._id} value={c.name}>{c.name}</option>
+              ))}
             </select>
           </div>
 

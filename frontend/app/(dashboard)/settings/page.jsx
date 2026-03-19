@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { settingsAPI } from '../../../lib/api';
+import { settingsAPI, categoriesAPI } from '../../../lib/api';
 import toast from 'react-hot-toast';
 
   const roleOptions = [
@@ -15,6 +15,8 @@ import toast from 'react-hot-toast';
     { value: 'Data Entry', label: 'Data Entry' },
   ];
 
+
+import NotificationPanel from '../../../components/NotificationPanel';
 
 const TABS = [
   { id: 'categories', label: 'Categories' },
@@ -47,24 +49,25 @@ export default function SettingsPage() {
   const [testing, setTesting] = useState({});
 
   // Categories state
-  const [categories, setCategories] = useState([
-    { name: 'Consulting', type: 'Income', active: true },
-    { name: 'Marketing', type: 'Expense', active: false },
-    { name: 'Office Supplies', type: 'Expense', active: false },
-    { name: 'Rent', type: 'Expense', active: false },
-    { name: 'Salary', type: 'Expense', active: false },
-    { name: 'Sales Revenue', type: 'Income', active: false },
-    { name: 'Service Income', type: 'Income', active: false },
-    { name: 'Utilities', type: 'Expense', active: false },
-  ]);
+  const [categories, setCategories] = useState([]);
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryType, setNewCategoryType] = useState("Income");
 
   useEffect(() => {
     if (tab === 'smtp' && user?.role === 'superadmin') loadConfigs();
-    // TODO: fetch categories, users, notifications as needed
+    if (tab === 'categories') fetchCategories();
+    // TODO: fetch users, notifications as needed
   }, [tab, user]);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await categoriesAPI.getAll();
+      setCategories(res.data);
+    } catch (err) {
+      toast.error('Failed to load categories');
+    }
+  };
 
   // SMTP logic (existing)
   const loadConfigs = async () => {
@@ -117,6 +120,32 @@ export default function SettingsPage() {
     setTesting({ ...testing, [type]: false });
   };
 
+  // Add new category
+  const handleAddCategory = async (e) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
+    try {
+      const res = await categoriesAPI.create({ name: newCategoryName, type: newCategoryType, active: true });
+      setCategories((prev) => [...prev, res.data]);
+      toast.success('Category added');
+      setShowAddCategory(false);
+      setNewCategoryName("");
+      setNewCategoryType("Income");
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to add category');
+    }
+  };
+
+  // Toggle active status
+  const handleToggleActive = async (cat, idx) => {
+    try {
+      const updated = await categoriesAPI.update(cat._id, { ...cat, active: !cat.active });
+      setCategories((prev) => prev.map((c, i) => i === idx ? updated.data : c));
+    } catch (err) {
+      toast.error('Failed to update category');
+    }
+  };
+
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto">
       <div className="mb-6">
@@ -153,7 +182,7 @@ export default function SettingsPage() {
           </div>
           <div>
             {categories.map((cat, i) => (
-              <div key={cat.name + i} className="flex items-center justify-between border-b last:border-b-0 py-3">
+              <div key={cat._id} className="flex items-center justify-between border-b last:border-b-0 py-3">
                 <div className="font-medium text-gray-900 flex items-center gap-2">
                   {cat.name}
                   <span className={`text-xs px-2 py-0.5 rounded border ${cat.type === 'Income' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-700'}`}>{cat.type}</span>
@@ -162,9 +191,7 @@ export default function SettingsPage() {
                   <input
                     type="checkbox"
                     checked={cat.active}
-                    onChange={() => {
-                      setCategories(prev => prev.map((c, idx) => idx === i ? { ...c, active: !c.active } : c));
-                    }}
+                    onChange={() => handleToggleActive(cat, i)}
                     className="sr-only"
                   />
                   <div className={`w-11 h-6 flex items-center rounded-full p-1 duration-300 border ${cat.active ? 'bg-green-500 border-green-500' : 'bg-gray-300 border-gray-300'}`}>
@@ -180,20 +207,7 @@ export default function SettingsPage() {
             <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-lg">
                 <h3 className="text-lg font-bold mb-4">Add Category</h3>
-                <form
-                  onSubmit={e => {
-                    e.preventDefault();
-                    if (!newCategoryName.trim()) return;
-                    setCategories(prev => [
-                      ...prev,
-                      { name: newCategoryName, type: newCategoryType, active: true }
-                    ]);
-                    setShowAddCategory(false);
-                    setNewCategoryName("");
-                    setNewCategoryType("Income");
-                  }}
-                  className="space-y-4"
-                >
+                <form onSubmit={handleAddCategory} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Name</label>
                     <input
@@ -354,6 +368,10 @@ export default function SettingsPage() {
             </ul>
           </div>
         </div>
+      )}
+      {/* Notifications Tab */}
+      {tab === 'notifications' && (
+        <NotificationPanel isAdmin={user?.role === 'admin' || user?.role === 'superadmin'} />
       )}
     </div>
   );

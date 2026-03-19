@@ -160,6 +160,8 @@ export default function TransactionsPage() {
   );
 }
 
+import { categoriesAPI } from '../../../lib/api';
+
 function TransactionModal({ onClose }) {
   const [type, setType] = useState("Expense");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -172,29 +174,30 @@ function TransactionModal({ onClose }) {
   const [accounts, setAccounts] = useState([]);
   const [teams, setTeams] = useState([]);
   const [employees, setEmployees] = useState([]);
-  const [categories, setCategories] = useState(["General", "Office", "Travel", "Supplies", "Other","rent","utilities","salaries","marketing","software","maintenance"]);
+  const [categories, setCategories] = useState([]);
 
   useEffect(() => {
     async function fetchDropdowns() {
       try {
-        const [accRes, teamRes, empRes] = await Promise.all([
+        const [accRes, teamRes, empRes, catRes] = await Promise.all([
           accountsAPI.getAll({}),
           teamsAPI.getAll(),
-          usersAPI.getAll({})
+          usersAPI.getAll({}),
+          categoriesAPI.getAll()
         ]);
         setAccounts(accRes.data.data || []);
         setTeams(teamRes.data.data || []);
         setEmployees(empRes.data.data || []);
+        setCategories((catRes.data || []).filter(c => c.active && (type === 'Income' ? c.type === 'Income' : c.type === 'Expense')));
       } catch (err) {
-        // Show error or fallback
         setAccounts([]);
         setTeams([]);
         setEmployees([]);
-        // Optionally: alert('Failed to load dropdowns');
+        setCategories([]);
       }
     }
     fetchDropdowns();
-  }, []);
+  }, [type]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -279,9 +282,9 @@ function TransactionModal({ onClose }) {
             <label className="block text-sm font-medium mb-1">Category</label>
             <select value={category} onChange={e => setCategory(e.target.value)} className="input w-full">
               <option value="">Select category</option>
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
+              {categories.map(cat => (
+                <option key={cat._id} value={cat.name}>{cat.name}</option>
+              ))}
             </select>
           </div>
           <div>

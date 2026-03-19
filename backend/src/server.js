@@ -41,6 +41,8 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 
 // app.use('/api/projects', require('./routes/projects'));
 app.use('/api/teams', require('./routes/teams'));
+app.use('/api/categories', require('./routes/categories'));
+app.use('/api/notification-preferences', require('./routes/notificationPreferences'));
 // app.use('/api/notifications', require('./routes/notifications'));
 
 

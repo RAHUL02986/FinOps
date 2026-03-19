@@ -1,16 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { incomeAPI } from '../lib/api';
+import { incomeAPI, categoriesAPI } from '../lib/api';
 
-const SOURCES = [
-  'Salary', 'Freelance', 'Business', 'Investment',
-  'Rental', 'Gift', 'Pension', 'Other',
-];
+
 
 export default function IncomeForm({ income, onClose, users = null, defaultUserId = '' }) {
+  const [categories, setCategories] = useState([]);
   const today = new Date().toISOString().split('T')[0];
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await categoriesAPI.getAll();
+        setCategories(res.data.filter((c) => c.active && c.type === 'Income'));
+      } catch {
+        setCategories([]);
+      }
+    };
+    fetchCategories();
+  }, []);
   const [form, setForm] = useState({
     amount: income?.amount ?? '',
     source: income?.source ?? '',
@@ -100,7 +110,9 @@ export default function IncomeForm({ income, onClose, users = null, defaultUserI
             <label className="block text-sm font-medium text-gray-700 mb-1">Source *</label>
             <select name="source" required value={form.source} onChange={handleChange} className="input">
               <option value="">Select a source</option>
-              {SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+              {categories.map((c) => (
+                <option key={c._id} value={c.name}>{c.name}</option>
+              ))}
             </select>
           </div>
 
