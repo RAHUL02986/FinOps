@@ -3,6 +3,7 @@ const { body, validationResult } = require('express-validator');
 const Transaction = require('../models/Transaction');
 // Removed Income and Expense models; only Transaction is used
 const { protect } = require('../middleware/auth');
+const Notification = require('../models/Notification');
 
 const ELEVATED = ['superadmin', 'hr', 'manager'];
 const isElevated = (role) => ELEVATED.includes(role);
@@ -69,15 +70,34 @@ router.post(
       return res.status(400).json({ success: false, errors: errors.array() });
     }
     try {
-      // Set status to 'Pending' if HR, 'Draft' if Data Entry, else default
+      // Set status to 'Pending' if HR or Manager, 'Draft' if Data Entry, else default
       let status = req.body.status;
-      if (req.user.role === 'hr') status = 'Pending';
+      if (req.user.role === 'hr' || req.user.role === 'manager') status = 'Pending';
       if (req.user.role === 'dataentry') status = 'Draft';
+
       const txn = await Transaction.create({
         ...req.body,
         user: req.user.id,
         status: status || undefined,
       });
+
+      // Notify admin on new transaction (draft/pending/approved)
+      const notifyType =
+        status === 'Draft' ? 'transaction_created'
+        : status === 'Pending' ? 'transaction_created'
+        : 'transaction_created';
+      // Find all admins
+      const User = require('../models/User');
+      const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+      for (const admin of admins) {
+        await Notification.create({
+          user: admin._id,
+          type: notifyType,
+          title: 'New Transaction Added',
+          message: `${req.user.name} added a new transaction (${txn.type}, ₹${txn.amount})`,
+          transaction: txn._id
+        });
+      }
 
       // No need to create Income/Expense; dashboard uses only Transaction
       res.status(201).json({ success: true, data: txn });
@@ -101,6 +121,20 @@ router.put('/:id', async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only admin can approve or reject transactions' });
     }
     const updated = await Transaction.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+
+    // Notify user on approval/rejection
+    if ('status' in req.body && (req.body.status === 'Approved' || req.body.status === 'Rejected')) {
+      const Notification = require('../models/Notification');
+      const txnUser = updated.user;
+      const notifType = req.body.status === 'Approved' ? 'transaction_approved' : 'transaction_rejected';
+      await Notification.create({
+        user: txnUser,
+        type: notifType,
+        title: `Transaction ${req.body.status}`,
+        message: `Your transaction (${updated.type}, ₹${updated.amount}) was ${req.body.status.toLowerCase()}.`,
+        transaction: updated._id
+      });
+    }
     res.json({ success: true, data: updated });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

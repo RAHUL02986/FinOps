@@ -16,9 +16,11 @@ router.get('/chart', async (req, res) => {
     const { period = 'month' } = req.query;
 
     let userFilter = { status: 'Approved' };
-    if (req.user.role !== 'hr') {
-      userFilter.user = new mongoose.Types.ObjectId(req.user.id);
-    }
+    // All users, including admin/superadmin, see only approved transactions
+    // If you want to restrict to user's own transactions, uncomment below:
+    // if (req.user.role !== 'hr') {
+    //   userFilter.user = new mongoose.Types.ObjectId(req.user.id);
+    // }
 
     // Last 6 periods (months/quarters/years)
     const periods = [];
@@ -88,7 +90,7 @@ router.get('/chart', async (req, res) => {
 
     // Expense category breakdown (all time)
     const categoryBreakdown = await Transaction.aggregate([
-      { $match: { user: userId, type: 'expense' } },
+      { $match: { ...userFilter, type: 'expense' } },
       { $group: { _id: '$category', value: { $sum: '$amount' } } },
       { $sort: { value: -1 } },
     ]);

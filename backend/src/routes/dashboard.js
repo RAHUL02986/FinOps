@@ -28,10 +28,11 @@ router.get('/summary', async (req, res) => {
     const startDate = getPeriodStart(period);
     const dateMatch = startDate ? { date: { $gte: startDate } } : {};
     let matchBase = { status: 'Approved', ...dateMatch };
-    // superadmin and hr see all, others see only their own
-    if (req.user.role !== 'superadmin' && req.user.role !== 'hr') {
-      matchBase.user = new mongoose.Types.ObjectId(req.user.id);
-    }
+    // All users, including admin/superadmin, see only approved transactions
+    // If you want to restrict to user's own transactions, uncomment below:
+    // if (req.user.role !== 'superadmin' && req.user.role !== 'hr') {
+    //   matchBase.user = new mongoose.Types.ObjectId(req.user.id);
+    // }
     const [incomeAgg, expenseAgg, recentTxns] = await Promise.all([
       Transaction.aggregate([
         { $match: { ...matchBase, type: 'income' } },
@@ -72,7 +73,8 @@ router.get('/chart', async (req, res) => {
 const isHr = req.user.role === 'hr';
     const userId = mongoose.isValidObjectId(req.user.id) ? new mongoose.Types.ObjectId(req.user.id) : null;
     // superadmin and hr see all, others see only their own
-    const userMatch = (req.user.role === 'superadmin' || req.user.role === 'hr') ? {} : { user: userId };
+    // All users, including admin/superadmin, see only approved transactions
+    const userMatch = { status: 'Approved' };
     // Last 6 months data from Transaction collection
     const monthlyData = [];
     for (let i = 5; i >= 0; i--) {

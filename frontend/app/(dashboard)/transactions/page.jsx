@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { expensesAPI, incomeAPI, accountsAPI, teamsAPI, usersAPI, transactionsAPI } from "../../../lib/api";
+import { FaArrowDown, FaArrowUp, FaExchangeAlt, FaCheckCircle, FaClock, FaTimesCircle, FaEllipsisV } from 'react-icons/fa';
 import { useAuth } from "../../../context/AuthContext";
 import Link from "next/link";
 
@@ -10,46 +11,50 @@ const STATUS_OPTIONS = ["All", "Approved", "Pending", "Rejected"];
 function TransactionRow({ txn, user, onAction }) {
   const [open, setOpen] = useState(false);
   const isAdmin = user?.role === 'superadmin';
+  // Icon for type
+  const typeIcon = txn.type === 'income' ? <FaArrowUp className="text-green-500 inline mr-1" />
+    : txn.type === 'expense' ? <FaArrowDown className="text-red-500 inline mr-1" />
+    : <FaExchangeAlt className="text-blue-500 inline mr-1" />;
+  // Icon for status
+  const statusIcon = txn.status === 'Approved' ? <FaCheckCircle className="inline mr-1 text-green-500" />
+    : txn.status === 'Pending' ? <FaClock className="inline mr-1 text-yellow-500" />
+    : <FaTimesCircle className="inline mr-1 text-gray-400" />;
   return (
-    <tr>
-      <td>{new Date(txn.date).toLocaleDateString()}</td>
-      <td>
-        <span className={`px-2 py-1 rounded text-xs font-semibold ${txn.type === "expense" ? "bg-red-50 text-red-600 border border-red-200" : "bg-green-50 text-green-600 border border-green-200"}`}>{txn.type.charAt(0).toUpperCase() + txn.type.slice(1)}</span>
+    <tr className="even:bg-gray-50 hover:bg-indigo-50 transition-colors group">
+      <td className="py-3 px-4 whitespace-nowrap text-gray-700">{new Date(txn.date).toLocaleDateString()}</td>
+      <td className="py-3 px-4 font-semibold">
+        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold border ${txn.type === "expense" ? "bg-red-50 text-red-600 border-red-200" : txn.type === 'income' ? "bg-green-50 text-green-600 border-green-200" : "bg-blue-50 text-blue-600 border-blue-200"}`}>{typeIcon}{txn.type.charAt(0).toUpperCase() + txn.type.slice(1)}</span>
       </td>
-      <td>{txn.account && txn.account.name ? txn.account.name : '-'}</td>
-      <td className={txn.type === "expense" ? "text-red-600 font-semibold" : "text-green-600 font-semibold"}>
-        {txn.type === "expense" ? "-" : "+"}
-        ₹{txn.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+      <td className="py-3 px-4 text-gray-700">{txn.account && txn.account.name ? txn.account.name : '-'}</td>
+      <td className={`py-3 px-4 font-semibold ${txn.type === "expense" ? "text-red-600" : "text-green-600"}`}>{txn.type === "expense" ? "-" : "+"}₹{txn.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+      <td className="py-3 px-4">
+        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold border ${txn.status === 'Approved' ? 'bg-green-50 text-green-700 border-green-200' : txn.status === 'Draft' ? 'bg-gray-50 text-gray-500 border-gray-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>{statusIcon}{txn.status}</span>
       </td>
-      <td>
-        <span className={`px-2 py-1 rounded text-xs font-semibold ${txn.status === 'Approved' ? 'bg-green-100 text-green-700' : txn.status === 'Draft' ? 'bg-gray-100 text-gray-500' : 'bg-yellow-100 text-yellow-700'}`}>{txn.status}</span>
-      </td>
-      <td className="relative">
+      <td className="py-3 px-4 relative text-right">
         {isAdmin && (
-          <>
-            <button className="text-gray-400 hover:text-gray-700" onClick={() => setOpen((v) => !v)}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 12h.01M12 12h.01M18 12h.01" />
-              </svg>
+          <div className="inline-block text-left">
+            <button className="text-gray-400 hover:text-indigo-600 p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-400" onClick={() => setOpen((v) => !v)}>
+              <FaEllipsisV />
             </button>
             {open && (
-              <div className="absolute right-0 z-10 bg-white border rounded shadow w-36 mt-2">
+              <div className="absolute right-0 z-20 bg-white border rounded shadow w-40 mt-2 animate-fade-in">
                 {(txn.status === 'Pending' || txn.status === 'Draft') && (
                   <>
-                    <button className="block w-full text-left px-4 py-2 hover:bg-gray-100" onClick={() => { setOpen(false); onAction('approve', txn); }}>Approve</button>
-                    <button className="block w-full text-left px-4 py-2 hover:bg-gray-100" onClick={() => { setOpen(false); onAction('reject', txn); }}>Reject</button>
+                    <button className="block w-full text-left px-4 py-2 hover:bg-indigo-50" onClick={() => { setOpen(false); onAction('approve', txn); }}>✅ Approve</button>
+                    <button className="block w-full text-left px-4 py-2 hover:bg-indigo-50" onClick={() => { setOpen(false); onAction('reject', txn); }}>❌ Reject</button>
                   </>
                 )}
-                <button className="block w-full text-left px-4 py-2 hover:bg-gray-100" onClick={() => { setOpen(false); onAction('view', txn); }}>View Details</button>
-                <button className="block w-full text-left px-4 py-2 text-red-600 hover:bg-gray-100" onClick={() => { setOpen(false); onAction('delete', txn); }}>Delete</button>
+                <button className="block w-full text-left px-4 py-2 hover:bg-indigo-50" onClick={() => { setOpen(false); onAction('view', txn); }}>🔍 View Details</button>
+                <button className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50" onClick={() => { setOpen(false); onAction('delete', txn); }}>🗑️ Delete</button>
               </div>
             )}
-          </>
+          </div>
         )}
       </td>
     </tr>
   );
 }
+
 
 export default function TransactionsPage() {
   const { user } = useAuth();
@@ -58,16 +63,29 @@ export default function TransactionsPage() {
   const [showModal, setShowModal] = useState(false);
   const [viewTxn, setViewTxn] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 10;
+
+  async function fetchTransactions(pageNum = 1, status = statusFilter) {
+    const params = { page: pageNum, limit: PAGE_SIZE };
+    if (status !== 'All') params.status = status;
+    const res = await transactionsAPI.getAll(params);
+    setTransactions(res.data.data);
+    setTotalPages(res.data.pages || 1);
+    setTotalCount(res.data.total || 0);
+  }
 
   useEffect(() => {
-    async function fetchData() {
-      const res = await transactionsAPI.getAll({});
-      setTransactions(res.data.data.sort((a, b) => new Date(b.date) - new Date(a.date)));
-    }
-    fetchData();
-  }, []);
+    fetchTransactions(page, statusFilter);
+    // eslint-disable-next-line
+  }, [page, statusFilter]);
 
-  const filteredTxns = statusFilter === "All" ? transactions : transactions.filter(t => t.status === statusFilter);
+  const handleStatusChange = (e) => {
+    setStatusFilter(e.target.value);
+    setPage(1);
+  };
 
   async function handleAction(action, txn) {
     if (action === 'approve') {
@@ -96,27 +114,59 @@ export default function TransactionsPage() {
       <h1 className="text-3xl font-bold mb-2">Transactions</h1>
       <p className="text-gray-500 mb-6">Manage and track all financial movements</p>
       <div className="flex items-center gap-3 mb-4">
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border rounded px-3 py-2 text-sm">
+        <select value={statusFilter} onChange={handleStatusChange} className="border rounded px-3 py-2 text-sm">
           {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
         </select>
         <button className="bg-blue-600 text-white px-4 py-2 rounded font-semibold" onClick={() => setShowModal(true)}>+ Add Transaction</button>
       </div>
-      <div className="bg-white rounded-xl shadow p-6">
-        <table className="w-full text-sm">
-          <thead>
+      <div className="bg-white rounded-xl shadow p-6 overflow-x-auto">
+        <table className="w-full text-sm min-w-[700px]">
+          <thead className="sticky top-0 z-10 bg-white border-b">
             <tr>
-              <th className="text-left">DATE</th>
-              <th className="text-left">TYPE</th>
-              <th className="text-left">ACCOUNT</th>
-              <th className="text-left">AMOUNT (INR)</th>
-              <th className="text-left">STATUS</th>
-              <th className="text-left">ACTIONS</th>
+              <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+              <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+              <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider">Account</th>
+              <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider">Amount (INR)</th>
+              <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="text-right px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredTxns.map(txn => <TransactionRow key={txn._id} txn={txn} user={user} onAction={handleAction} />)}
+            {transactions.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="text-center py-10 text-gray-400">No transactions found.</td>
+              </tr>
+            ) : (
+              transactions.map(txn => <TransactionRow key={txn._id} txn={txn} user={user} onAction={handleAction} />)
+            )}
           </tbody>
         </table>
+        {/* Pagination Controls - always show */}
+        <div className="flex justify-center items-center gap-2 mt-6">
+          <button
+            className="btn-secondary px-3 py-1"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            Previous
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => (
+            <button
+              key={i}
+              className={`px-3 py-1 rounded ${page === i + 1 ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              onClick={() => setPage(i + 1)}
+            >
+              {i + 1}
+            </button>
+          ))}
+          <button
+            className="btn-secondary px-3 py-1"
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            Next
+          </button>
+        </div>
       </div>
       {showModal && <TransactionModal onClose={() => setShowModal(false)} />}
       {viewTxn && (

@@ -103,6 +103,7 @@ export const invoicesAPI = {
 };
 
 // ── Notifications ─────────────────────────────────────────────────────────────
+// Types: invoice_reminder, payroll_notification, expense_alert, transaction_created, transaction_approved, transaction_rejected
 export const notificationsAPI = {
   getAll: (params) => api.get('/notifications', { params }),
   markRead: (id) => api.patch(`/notifications/${id}/read`),

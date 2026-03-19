@@ -57,12 +57,14 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
 
 
   // Task notifications (all users)
+
+  // Fetch notifications, filter by preferences (handled by backend)
   const fetchNotifications = () => {
     if (!user) return;
-    notificationsAPI.getAll({ limit: 15 })
+    notificationsAPI.getAll()
       .then(res => {
-        setNotifications(res.data.data ?? []);
-        setUnreadCount(res.data.unreadCount ?? 0);
+        setNotifications(res.data || []);
+        setUnreadCount((res.data || []).filter(n => !n.read).length);
       })
       .catch(() => {});
   };
@@ -103,10 +105,45 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
       <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
 
       <div className="flex items-center gap-3">
-
-
-
-        {/* Removed Feedback bell and Tasks links */}
+        {/* Notification Bell */}
+        <div className="relative" ref={notifsRef}>
+          <button
+            className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-indigo-50 relative"
+            onClick={() => setShowNotifsDropdown((v) => !v)}
+            aria-label="Notifications"
+          >
+            <span className="text-xl">🔔</span>
+            {unreadCount > 0 && (
+              <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-bold" style={{ fontSize: 11 }}>{unreadCount}</span>
+            )}
+          </button>
+          {showNotifsDropdown && (
+            <div className="absolute right-0 mt-2 w-80 bg-white border rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+              <div className="flex items-center justify-between px-4 py-2 border-b">
+                <span className="font-semibold text-gray-800">Notifications</span>
+                {unreadCount > 0 && (
+                  <button onClick={handleMarkAllRead} className="text-xs text-blue-600 hover:underline">Mark all read</button>
+                )}
+              </div>
+              <ul className="divide-y">
+                {notifications.length === 0 ? (
+                  <li className="px-4 py-6 text-gray-400 text-center">No notifications</li>
+                ) : notifications.map((n) => (
+                  <li key={n._id} className={`px-4 py-3 flex items-start gap-3 ${n.read ? 'opacity-60' : ''}`}>
+                    <span className="mt-1 text-lg">
+                      {NOTIF_ICON[n.type] || (n.type?.startsWith('transaction') ? '💸' : '🔔')}
+                    </span>
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{n.title}</div>
+                      <div className="text-gray-500 text-sm">{n.message}</div>
+                      <div className="text-xs text-gray-400 mt-1">{fmtRelative(n.createdAt)}</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
 
         <div className="text-right hidden sm:block">
           <p className="text-sm font-medium text-gray-700">{user?.name}</p>
