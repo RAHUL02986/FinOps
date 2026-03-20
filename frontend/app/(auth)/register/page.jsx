@@ -1,60 +1,85 @@
-'use client';
-
+"use client";
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '../../../context/AuthContext';
+import { useRouter } from 'next/navigation';
+import { authAPI } from '../../../lib/api';
+import toast from 'react-hot-toast';
 
 export default function RegisterPage() {
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', confirm: '' });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { register } = useAuth();
   const router = useRouter();
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirm: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
-  const handleChange = (e) =>
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    // Clear error on change
+    if (errors[e.target.name]) {
+      setErrors({ ...errors, [e.target.name]: '' });
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.name.trim()) newErrors.name = 'Name is required';
+    if (!formData.email.trim()) newErrors.email = 'Email is required';
+    else if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(formData.email)) newErrors.email = 'Email is invalid';
+    
+    if (!formData.password) newErrors.password = 'Password is required';
+    else if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
+    
+    if (formData.confirm !== formData.password) newErrors.confirm = 'Passwords do not match';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    
+    if (!validateForm()) return;
 
-    if (formData.password !== formData.confirm) {
-      return setError('Passwords do not match');
-    }
-    if (formData.password.length < 6) {
-      return setError('Password must be at least 6 characters');
-    }
-
-    setLoading(true);
     try {
-      await register(formData.name, formData.email, formData.password);
-      router.push('/dashboard');
+      setLoading(true);
+      await authAPI.register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password
+      });
+      
+      toast.success('Account created successfully! Please log in.');
+      router.push('/login');
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+      const msg = err.response?.data?.message || 'Registration failed';
+      toast.error(msg);
+      setErrors({ server: msg });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-blue-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-2xl mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Create account</h1>
-          <p className="text-gray-500 text-sm mt-1">Start tracking your finances</p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl border border-gray-200">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
+            Create your account
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Join us to manage your expenditures
+          </p>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
+        
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          {errors.server && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
+              {errors.server}
             </div>
           )}
 
@@ -70,9 +95,10 @@ export default function RegisterPage() {
               required
               value={formData.name}
               onChange={handleChange}
-              className="input"
+              className={`input w-full pr-10 ${errors.name ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
               placeholder="John Doe"
             />
+            {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
           </div>
 
           <div>
@@ -87,9 +113,10 @@ export default function RegisterPage() {
               required
               value={formData.email}
               onChange={handleChange}
-              className="input"
+              className={`input w-full pr-10 ${errors.email ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
               placeholder="you@example.com"
             />
+            {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
           </div>
 
           <div>
@@ -104,9 +131,10 @@ export default function RegisterPage() {
               required
               value={formData.password}
               onChange={handleChange}
-              className="input"
+              className={`input w-full pr-10 ${errors.password ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
               placeholder="Min. 6 characters"
             />
+            {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
           </div>
 
           <div>
@@ -121,20 +149,25 @@ export default function RegisterPage() {
               required
               value={formData.confirm}
               onChange={handleChange}
-              className="input"
+              className={`input w-full pr-10 ${errors.confirm ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
               placeholder="Repeat your password"
             />
+            {errors.confirm && <p className="mt-1 text-sm text-red-600">{errors.confirm}</p>}
           </div>
 
-          <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2">
+          <button 
+            type="submit" 
+            disabled={loading} 
+            className="btn-primary w-full py-2.5 mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 inline" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V8a8 8 0 014 8h8a8 8 0 01-16 0z"></path>
                 </svg>
                 Creating account…
-              </span>
+              </>
             ) : (
               'Create account'
             )}
@@ -151,3 +184,4 @@ export default function RegisterPage() {
     </div>
   );
 }
+

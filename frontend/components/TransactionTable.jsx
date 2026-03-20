@@ -1,5 +1,7 @@
 'use client';
 
+
+import { useState } from 'react';
 import Link from 'next/link';
 
 const formatCurrency = (n) =>
@@ -9,6 +11,10 @@ const formatDate = (d) =>
   new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 export default function TransactionTable({ transactions = [], title = 'Recent Transactions', showAll = false }) {
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
+  const pageCount = Math.ceil(transactions.length / pageSize);
+  const paginated = transactions.slice((page - 1) * pageSize, page * pageSize);
   if (!transactions.length) {
     return (
       <div className="card">
@@ -28,12 +34,6 @@ export default function TransactionTable({ transactions = [], title = 'Recent Tr
     <div className="card">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-semibold text-gray-800">{title}</h3>
-        {!showAll && (
-          <div className="flex gap-3 text-sm">
-            <Link href="/expenses" className="text-indigo-600 hover:underline">Expenses →</Link>
-            <Link href="/income" className="text-indigo-600 hover:underline">Income →</Link>
-          </div>
-        )}
       </div>
       <div className="overflow-x-auto -mx-6">
         <table className="w-full text-sm">
@@ -47,7 +47,7 @@ export default function TransactionTable({ transactions = [], title = 'Recent Tr
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {transactions.map((txn) => (
+            {paginated.map((txn) => (
               <tr key={txn._id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-3.5 text-gray-600 whitespace-nowrap">{formatDate(txn.date)}</td>
                 <td className="px-6 py-3.5">
@@ -74,6 +74,34 @@ export default function TransactionTable({ transactions = [], title = 'Recent Tr
           </tbody>
         </table>
       </div>
+      {/* Pagination Controls */}
+      {pageCount > 1 && (
+        <div className="flex justify-center items-center gap-2 mt-4">
+          <button
+            className="px-3 py-1 rounded bg-gray-100 text-gray-600 disabled:opacity-50"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            Prev
+          </button>
+          {Array.from({ length: pageCount }, (_, i) => (
+            <button
+              key={i}
+              className={`px-3 py-1 rounded ${page === i + 1 ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-600'}`}
+              onClick={() => setPage(i + 1)}
+            >
+              {i + 1}
+            </button>
+          ))}
+          <button
+            className="px-3 py-1 rounded bg-gray-100 text-gray-600 disabled:opacity-50"
+            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            disabled={page === pageCount}
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,6 +8,56 @@ import { useAuth } from '../context/AuthContext';
 
 
 
+// Manager-only navigation
+const MANAGER_NAV = [
+  {
+    href: '/dashboard',
+    label: 'Dashboard',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      </svg>
+    ),
+  },
+  {
+    href: '/invoices',
+    label: 'Invoicing',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+  },
+  {
+    href: '/reports',
+    label: 'Reports',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+  },
+  {
+    href: '/goals',
+    label: 'Goals',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    ),
+  },
+  {
+    href: '/recurring-expenses',
+    label: 'Recurring Expenses',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+    ),
+  },
+];
+
 const ELEVATED_NAV = [
   {
     href: '/dashboard',
@@ -158,45 +208,40 @@ const ELEVATED_NAV = [
 
   export default function Sidebar({ onNavigate }) {
     const pathname = usePathname();
+
+    // Helper to check if nav item is active
+    const isActive = (href) => {
+      // For dashboard/transactions, allow partial match for subroutes
+      if (href === '/dashboard/transactions') {
+        return pathname.startsWith('/dashboard/transactions');
+      }
+      // For dashboard, only match exact
+      if (href === '/dashboard') {
+        return pathname === '/dashboard';
+      }
+      // For all others, allow startsWith for subpages
+      return pathname.startsWith(href);
+    };
     const { user, logout } = useAuth();
     const [pendingCount, setPendingCount] = useState(0);
     const [isMobile, setIsMobile] = useState(false);
-
-    useEffect(() => {
-      const checkMobile = () => {
-        setIsMobile(window.innerWidth < 768);
-      };
-      checkMobile();
-      window.addEventListener('resize', checkMobile);
-      return () => window.removeEventListener('resize', checkMobile);
-    }, []);
-
-    useEffect(() => {
-      if (!user || !isElevated(user.role)) return;
-      setPendingCount(0); // Placeholder for pending count logic
-    }, [user]);
-
-    const isActive = (href) =>
-      href === '/admin' ? pathname === '/admin' : pathname.startsWith(href);
-
-    let navItems = USER_NAV;
-    if (user?.role === 'dataentry') {
-      navItems = [
-        {
-          href: '/transactions',
-          label: 'Transactions',
-          icon: (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          ),
-        },
-      ];
-    } else if (user?.role === 'hr') {
-      navItems = HR_NAV;
-    } else if (isElevated(user?.role)) {
-      navItems = ELEVATED_NAV;
-    }
+    let navItems = [];
+    if (!user) navItems = [];
+    else if (user.role === 'dataentry') navItems = [
+      {
+        href: '/transactions',
+        label: 'Transactions',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+      },
+    ];
+    else if (user.role === 'manager') navItems = MANAGER_NAV;
+    else if (user.role === 'hr') navItems = HR_NAV;
+    else if (isElevated(user.role)) navItems = ELEVATED_NAV;
+    else navItems = USER_NAV;
 
     return (
       <aside className={`flex flex-col w-64 bg-white border-r border-gray-100 min-h-screen ${!isMobile ? 'hidden md:flex' : ''}`}>

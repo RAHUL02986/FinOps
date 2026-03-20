@@ -54,7 +54,7 @@ router.use(authorize('superadmin'));
       body('name').notEmpty().trim().withMessage('Name is required'),
       body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
       body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-      body('role').optional().isIn(['dataentry', 'hr', 'manager', 'admin']).withMessage('Invalid role'),
+      body('role').optional().isIn(['dataentry', 'hr', 'manager', 'admin', 'user']).withMessage('Invalid role'),
       body('sector').optional().isIn(['IT', 'HR', 'Finance', 'Sales', 'Marketing', 'Operations', 'Admin']).withMessage('Invalid sector'),
       body('employmentType').optional().isIn(['full-time', 'part-time']).withMessage('Invalid employment type'),
     ],
