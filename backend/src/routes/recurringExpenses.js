@@ -7,10 +7,10 @@ const RecurringExpense = require('../models/RecurringExpense');
 router.use(protect);
 // Only HR can create, only admin can edit/delete/mark-paid
 router.use((req, res, next) => {
-  // Allow HR to create only
+  // Allow HR and Admin to create
   if (req.method === 'POST' && req.path === '/') {
-    if (req.user.role !== 'hr') {
-      return res.status(403).json({ message: 'Only HR can create recurring expenses' });
+    if (req.user.role !== 'hr' && req.user.role !== 'superadmin') {
+      return res.status(403).json({ message: 'Only HR or Admin can create recurring expenses' });
     }
     return next();
   }
