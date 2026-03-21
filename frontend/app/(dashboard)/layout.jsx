@@ -26,7 +26,7 @@ export default function DashboardLayout({ children }) {
     <div className="flex h-screen bg-gray-50">
       {/* Desktop Sidebar */}
       <div className="hidden md:block">
-        <Sidebar />
+        <Sidebar isMobile={false} />
       </div>
       
       {/* Mobile Sidebar Overlay */}
@@ -39,7 +39,7 @@ export default function DashboardLayout({ children }) {
           />
           {/* Mobile Sidebar */}
           <div className="fixed inset-y-0 left-0 z-50 w-64 md:hidden">
-            <Sidebar onNavigate={() => setIsMobileMenuOpen(false)} />
+            <Sidebar isMobile={true} onNavigate={() => setIsMobileMenuOpen(false)} />
           </div>
         </>
       )}

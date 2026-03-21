@@ -67,7 +67,7 @@ export default function EmployeesPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto">
+    <div className="p-0 md:p-6 max-w-6xl mx-auto">
       <h1 className="text-2xl font-bold mb-2">Employee Management</h1>
       <p className="text-gray-500 mb-6">Manage teams, employees, and salary records.</p>
       <div className="flex gap-2 mb-6">

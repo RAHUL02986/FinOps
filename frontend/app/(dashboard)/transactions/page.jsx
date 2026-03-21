@@ -110,7 +110,7 @@ export default function TransactionsPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-0 md-p-8">
       <h1 className="text-3xl font-bold mb-2">Transactions</h1>
       <p className="text-gray-500 mb-6">Manage and track all financial movements</p>
       <div className="flex items-center gap-3 mb-4">

@@ -1,3 +1,5 @@
+// Start recurring expense reminder cron job
+require('./scheduler/recurringExpenseReminder.cron');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -52,6 +54,7 @@ app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api/proposals', require('./routes/proposals'));
 app.use('/api/settings/smtp', require('./routes/settings'));
 app.use('/api/recurring-expenses', require('./routes/recurringExpenses'));
+app.use('/api/recurring-expenses', require('./routes/recurringExpenses.reminder'));
 app.use('/api/accounts', require('./routes/accounts'));
 app.use('/api/payroll', require('./routes/payroll'));
 app.use('/api/goals', require('./routes/goals'));

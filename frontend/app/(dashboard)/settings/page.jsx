@@ -38,7 +38,7 @@ export default function SettingsPage() {
       { _id: '1', name: 'Data Entry User', email: 'michelle06.cmx@gmail.com', role: 'Data Entry' },
       { _id: '2', name: 'HR User', email: 'himanshukumar.codexmatrix@gmail.com', role: 'HR' },
       { _id: '3', name: 'Manager User', email: 'rahul.codexmatrix@gmail.com', role: 'Manager' },
-      { _id: '4', name: 'Administrator', email: 'abhishekbhatt9011@gmail.com', role: 'Admin' },
+      { _id: '4', name: 'Administrator', email: 'mikecmx01@gmail.com', role: 'Admin' },
     ]);
   const { user } = useAuth();
   const [tab, setTab] = useState('categories');
@@ -147,13 +147,13 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto">
+    <div className="p-0 md:p-6 max-w-5xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         <p className="text-gray-500 text-sm mt-1">Manage your account and application settings</p>
       </div>
       {/* Tabs */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-6 overflow-x-auto flex-no-wrap justify-start">
         {TABS.map((t) => (
           <button
             key={t.id}

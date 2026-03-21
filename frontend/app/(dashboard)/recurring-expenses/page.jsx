@@ -47,7 +47,7 @@ export default function RecurringExpensesPage() {
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600" /></div>;
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto">
+    <div className="p-0 md:p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div><h1 className="text-2xl font-bold text-gray-900">Recurring Expenses</h1><p className="text-gray-500 text-sm mt-1">Manage automated recurring payments and reminders</p></div>
         <button onClick={() => { setForm({ title: '', amount: '', category: 'Other', description: '', frequency: 'monthly', customDays: '', nextDueDate: '', reminderDaysBefore: 3, status: 'active', autoCreateTransaction: false }); setEditingId(null); setShowForm(true); }} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">+ Add Recurring</button>
