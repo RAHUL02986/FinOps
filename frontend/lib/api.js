@@ -143,7 +143,8 @@ export const recurringExpensesAPI = {
   create: (data) => api.post('/recurring-expenses', data),
   update: (id, data) => api.put(`/recurring-expenses/${id}`, data),
   remove: (id) => api.delete(`/recurring-expenses/${id}`),
-  markPaid: (id) => api.post(`/recurring-expenses/${id}/mark-paid`),
+  markPaid: (id, data) => api.post(`/recurring-expenses/${id}/mark-paid`, data),
+  getHistory: (id) => api.get(`/recurring-expenses/${id}/history`),
 };
 
 // ── Accounts ──────────────────────────────────────────────────────────────────

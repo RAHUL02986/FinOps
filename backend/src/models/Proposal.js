@@ -103,8 +103,18 @@ const proposalSchema = new mongoose.Schema({
 proposalSchema.pre('validate', async function(next) {
   if (!this.proposalNumber) {
     const year = new Date().getFullYear();
-    const count = await mongoose.model('Proposal').countDocuments();
-    this.proposalNumber = `PROP-${year}-${String(count + 1).padStart(4, '0')}`;
+    // Find the latest proposal for this year
+    const latest = await mongoose.model('Proposal')
+      .findOne({ proposalNumber: { $regex: `^PROP-${year}-\\d{4}$` } })
+      .sort({ proposalNumber: -1 });
+    let nextSeq = 1;
+    if (latest && latest.proposalNumber) {
+      const match = latest.proposalNumber.match(/PROP-\d{4}-(\d{4})/);
+      if (match) {
+        nextSeq = parseInt(match[1], 10) + 1;
+      }
+    }
+    this.proposalNumber = `PROP-${year}-${String(nextSeq).padStart(4, '0')}`;
   }
   next();
 });

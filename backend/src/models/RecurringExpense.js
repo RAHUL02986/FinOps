@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const recurringExpenseSchema = new mongoose.Schema({
+    paymentHistory: [{
+      paidAt: { type: Date, required: true },
+      amount: { type: Number, required: true },
+      method: { type: String }, // e.g., 'manual', 'auto', 'bank', etc.
+      note: { type: String }
+    }],
   title: { type: String, required: true, maxlength: 200 },
   amount: { type: Number, required: true, min: 0.01 },
   category: {

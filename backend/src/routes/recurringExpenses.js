@@ -4,6 +4,17 @@ const { protect } = require('../middleware/auth');
 const { authorize } = require('../middleware/roleCheck');
 const RecurringExpense = require('../models/RecurringExpense');
 
+// GET payment history for a recurring expense
+router.get('/:id/history', async (req, res) => {
+  try {
+    const expense = await RecurringExpense.findById(req.params.id);
+    if (!expense) return res.status(404).json({ message: 'Recurring expense not found' });
+    res.json(expense.paymentHistory || []);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.use(protect);
 // Only HR can create, only admin can edit/delete/mark-paid
 router.use((req, res, next) => {
@@ -76,7 +87,17 @@ router.post('/:id/mark-paid', async (req, res) => {
     const expense = await RecurringExpense.findById(req.params.id);
     if (!expense) return res.status(404).json({ message: 'Recurring expense not found' });
 
-    expense.lastPaidDate = new Date();
+    const paidAt = new Date();
+    expense.lastPaidDate = paidAt;
+
+    // Add to payment history
+    expense.paymentHistory = expense.paymentHistory || [];
+    expense.paymentHistory.push({
+      paidAt,
+      amount: expense.amount,
+      method: req.body.method || 'manual',
+      note: req.body.note || ''
+    });
 
     // Advance next due date based on frequency
     const next = new Date(expense.nextDueDate);
