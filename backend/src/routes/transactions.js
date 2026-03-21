@@ -86,7 +86,6 @@ router.post(
         status === 'Draft' ? 'transaction_created'
         : status === 'Pending' ? 'transaction_created'
         : 'transaction_created';
-      // Find all admins
       const User = require('../models/User');
       const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
       for (const admin of admins) {
@@ -98,6 +97,10 @@ router.post(
           transaction: txn._id
         });
       }
+
+      // Check goals and notify if needed
+      const { checkGoalsAndNotify } = require('../utils/goalCheckAndNotify');
+      await checkGoalsAndNotify(txn);
 
       // No need to create Income/Expense; dashboard uses only Transaction
       res.status(201).json({ success: true, data: txn });
@@ -135,6 +138,9 @@ router.put('/:id', async (req, res) => {
         transaction: updated._id
       });
     }
+    // Check goals and notify if needed after update
+    const { checkGoalsAndNotify } = require('../utils/goalCheckAndNotify');
+    await checkGoalsAndNotify(updated);
     res.json({ success: true, data: updated });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -149,6 +155,9 @@ router.delete('/:id', async (req, res) => {
 
     // No need to delete Income/Expense; dashboard uses only Transaction
 
+    // Check goals and notify if needed after delete (pass a dummy transaction with date/type)
+    const { checkGoalsAndNotify } = require('../utils/goalCheckAndNotify');
+    if (txn) await checkGoalsAndNotify(txn);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

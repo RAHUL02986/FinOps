@@ -33,24 +33,6 @@ const UserSchema = new mongoose.Schema(
       maxlength: [50, 'Designation cannot exceed 50 characters'],
       default: '',
     },
-    sector: {
-      type: String,
-      enum: ['IT', 'HR', 'Finance', 'Sales', 'Marketing', 'Operations', 'Admin'],
-      default: 'IT',
-    },
-    employmentType: {
-      type: String,
-      enum: ['full-time', 'part-time'],
-      default: 'full-time',
-    },
-    joiningDate: {
-      type: Date,
-    },
-    experienceYears: {
-      type: Number,
-      min: 0,
-      default: 0,
-    },
     documents: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Document' }],
     isActive: {
       type: Boolean,

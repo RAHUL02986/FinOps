@@ -149,52 +149,7 @@ export default function UserForm({ user, onClose }) {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Sector/Department</label>
-            <select name="sector" value={form.sector} onChange={handleChange} className="input">
-              <option value="IT">IT</option>
-              <option value="HR">HR</option>
-              <option value="Finance">Finance</option>
-              <option value="Sales">Sales</option>
-              <option value="Marketing">Marketing</option>
-              <option value="Operations">Operations</option>
-              <option value="Admin">Admin</option>
-            </select>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
-              <select name="employmentType" value={form.employmentType} onChange={handleChange} className="input">
-                <option value="full-time">Full Time</option>
-                <option value="part-time">Part Time</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Joining Date</label>
-              <input
-                name="joiningDate"
-                type="date"
-                value={form.joiningDate}
-                onChange={handleChange}
-                className="input"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Experience (Years)</label>
-            <input
-              name="experienceYears"
-              type="number"
-              min="0"
-              step="0.5"
-              value={form.experienceYears}
-              onChange={handleChange}
-              className="input"
-              placeholder="2.5"
-            />
-          </div>
 
           <div className="flex items-center gap-3">
             <input
