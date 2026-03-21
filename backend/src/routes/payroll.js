@@ -6,6 +6,7 @@ const { SalarySlip, PayrollRun } = require('../models/Payroll');
 const User = require('../models/User');
 const SmtpConfig = require('../models/SmtpConfig');
 const nodemailer = require('nodemailer');
+const path = require('path');
 
 router.use(protect);
 router.use(authorize('superadmin', 'hr'));
@@ -46,47 +47,34 @@ router.post('/runs', async (req, res) => {
     });
 
 
-    // Generate salary slips for each employee, using their latest slip if available
+    // Generate salary slips for each employee, but only if they have a previous slip
     const slips = [];
     for (const emp of employees) {
       // Find latest slip for this employee
       const latestSlip = await SalarySlip.findOne({ employee: emp._id })
         .sort({ year: -1, month: -1 });
 
-      let basicSalary, hra, allowances, deductions, tax, bonus;
-      if (latestSlip) {
-        basicSalary = latestSlip.basicSalary || req.body.defaultBasicSalary || 50000;
-        hra = latestSlip.hra || 0;
-        allowances = latestSlip.allowances || 0;
-        deductions = latestSlip.deductions || 0;
-        tax = latestSlip.tax || 0;
-        bonus = latestSlip.bonus || 0;
-      } else {
-        basicSalary = req.body.defaultBasicSalary || 50000;
-        hra = Math.round(basicSalary * 0.4);
-        allowances = Math.round(basicSalary * 0.1);
-        deductions = Math.round(basicSalary * 0.1);
-        tax = Math.round(basicSalary * 0.05);
-        bonus = 0;
+      if (!latestSlip) {
+        // Skip employee if no previous salary slip exists
+        continue;
       }
-      const netSalary = basicSalary + hra + allowances + bonus - deductions - tax;
 
-      const slip = await SalarySlip.create({
-        employee: emp._id,
-        employeeName: emp.name,
-        employeeEmail: emp.email,
-        designation: emp.designation || '',
-        basicSalary,
-        hra,
-        allowances,
-        deductions,
-        tax,
-        bonus,
-        netSalary,
-        month,
-        year,
-        payrollRun: run._id
-      });
+      // Copy all fields from the latest slip except _id, month, year, payrollRun, createdAt, updatedAt
+      const slipData = latestSlip.toObject();
+      delete slipData._id;
+      delete slipData.month;
+      delete slipData.year;
+      delete slipData.payrollRun;
+      delete slipData.createdAt;
+      delete slipData.updatedAt;
+      slipData.month = month;
+      slipData.year = year;
+      slipData.payrollRun = run._id;
+      slipData.employee = emp._id;
+      slipData.employeeName = emp.name;
+      slipData.employeeEmail = emp.email;
+
+      const slip = await SalarySlip.create(slipData);
       slips.push(slip._id);
     }
 
@@ -142,15 +130,42 @@ router.delete('/runs/:id', async (req, res) => {
 // POST create a salary slip for an employee
 router.post('/slips', async (req, res) => {
   try {
-    const { employee, employeeName, employeeEmail, designation, basicSalary, hra, allowances, deductions, tax, netSalary, bonus, month, year, reason, effectiveFrom, notes } = req.body;
-    if (!employee || !employeeName || !employeeEmail || !basicSalary || !month || !year) {
+    const {
+      employee, employeeName, employeeEmail, employeeId, designation, department, workLocation,
+      month, monthName, year,
+      companyName, companyAddress, companyEmail, companyWebsite,
+      earnings, facilities, totalValue,
+      paymentDetails, authorizedBy, notes1, notes2,
+      // legacy fields for compatibility
+      basicSalary, hra, allowances, deductions, tax, netSalary, bonus,
+      status
+    } = req.body;
+    if (!employee || !employeeName || !employeeEmail || !month || !year) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
     const slip = await SalarySlip.create({
       employee,
       employeeName,
       employeeEmail,
+      employeeId,
       designation,
+      department,
+      workLocation,
+      month,
+      monthName,
+      year,
+      companyName,
+      companyAddress,
+      companyEmail,
+      companyWebsite,
+      earnings,
+      facilities,
+      totalValue,
+      paymentDetails,
+      authorizedBy,
+      notes1,
+      notes2,
+      // legacy fields
       basicSalary,
       hra,
       allowances,
@@ -158,12 +173,7 @@ router.post('/slips', async (req, res) => {
       tax,
       netSalary,
       bonus,
-      month,
-      year,
-      reason,
-      effectiveFrom,
-      notes,
-      status: 'completed',
+      status: status || 'completed',
     });
     res.status(201).json(slip);
   } catch (err) {
@@ -192,8 +202,18 @@ router.put('/slips/:id', async (req, res) => {
     const slip = await SalarySlip.findById(req.params.id);
     if (!slip) return res.status(404).json({ message: 'Salary slip not found' });
 
-    Object.assign(slip, req.body);
-    slip.netSalary = (slip.basicSalary || 0) + (slip.hra || 0) + (slip.allowances || 0) + (slip.bonus || 0) - (slip.deductions || 0) - (slip.tax || 0);
+    // Update all fields, including new arrays and extra fields
+    const fields = [
+      'employee', 'employeeName', 'employeeEmail', 'employeeId', 'designation', 'department', 'workLocation',
+      'month', 'monthName', 'year',
+      'companyName', 'companyAddress', 'companyEmail', 'companyWebsite',
+      'earnings', 'facilities', 'totalValue',
+      'paymentDetails', 'authorizedBy', 'notes1', 'notes2',
+      'basicSalary', 'hra', 'allowances', 'deductions', 'tax', 'netSalary', 'bonus', 'status'
+    ];
+    fields.forEach(f => {
+      if (req.body[f] !== undefined) slip[f] = req.body[f];
+    });
     await slip.save();
     res.json(slip);
   } catch (err) {
@@ -234,37 +254,34 @@ router.post('/runs/:id/email-slips', async (req, res) => {
     const fromName = smtpConfig?.fromName || process.env.COMPANY_NAME || 'FinOps HR';
     const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+
+    // PDFKit utility for salary slip
+    const { generateSalarySlipPDF } = require('../utils/salarySlipPDF');
+    const os = require('os');
     let sentCount = 0;
     for (const slip of run.slips) {
       if (!slip.employeeEmail) continue;
 
-      const html = `
-        <div style="max-width:600px;margin:0 auto;font-family:Arial,sans-serif;">
-          <div style="background:#6366f1;color:#fff;padding:25px;border-radius:8px 8px 0 0;">
-            <h2 style="margin:0;">Salary Slip - ${monthNames[slip.month - 1]} ${slip.year}</h2>
-            <p style="margin:5px 0 0;opacity:0.9;">${process.env.COMPANY_NAME || 'Company'}</p>
-          </div>
-          <div style="padding:25px;border:1px solid #e5e7eb;border-top:none;">
-            <p>Dear <strong>${slip.employeeName}</strong>,</p>
-            <p>Here is your salary slip for ${monthNames[slip.month - 1]} ${slip.year}:</p>
-            <table style="width:100%;border-collapse:collapse;margin:20px 0;">
-              <tr style="background:#f9fafb;"><td style="padding:10px;border:1px solid #e5e7eb;font-weight:bold;">Basic Salary</td><td style="padding:10px;border:1px solid #e5e7eb;text-align:right;">₹${slip.basicSalary.toLocaleString()}</td></tr>
-              <tr><td style="padding:10px;border:1px solid #e5e7eb;">HRA</td><td style="padding:10px;border:1px solid #e5e7eb;text-align:right;">₹${slip.hra.toLocaleString()}</td></tr>
-              <tr style="background:#f9fafb;"><td style="padding:10px;border:1px solid #e5e7eb;">Allowances</td><td style="padding:10px;border:1px solid #e5e7eb;text-align:right;">₹${slip.allowances.toLocaleString()}</td></tr>
-              ${slip.bonus ? `<tr><td style="padding:10px;border:1px solid #e5e7eb;">Bonus</td><td style="padding:10px;border:1px solid #e5e7eb;text-align:right;">₹${slip.bonus.toLocaleString()}</td></tr>` : ''}
-              <tr style="background:#fef2f2;"><td style="padding:10px;border:1px solid #e5e7eb;">Deductions</td><td style="padding:10px;border:1px solid #e5e7eb;text-align:right;color:#ef4444;">-₹${slip.deductions.toLocaleString()}</td></tr>
-              <tr style="background:#fef2f2;"><td style="padding:10px;border:1px solid #e5e7eb;">Tax</td><td style="padding:10px;border:1px solid #e5e7eb;text-align:right;color:#ef4444;">-₹${slip.tax.toLocaleString()}</td></tr>
-              <tr style="background:#6366f1;color:#fff;"><td style="padding:12px;border:1px solid #6366f1;font-weight:bold;font-size:16px;">Net Salary</td><td style="padding:12px;border:1px solid #6366f1;text-align:right;font-weight:bold;font-size:16px;">₹${slip.netSalary.toLocaleString()}</td></tr>
-            </table>
-            <p style="color:#666;font-size:13px;">This is a system-generated salary slip. Please contact HR for any queries.</p>
-          </div>
-        </div>`;
+      // Prepare data for PDF: pass the full slip object, including all arrays and fields
+      const slipObj = slip.toObject ? slip.toObject() : slip;
+      slipObj.monthName = monthNames[slip.month - 1]; // ensure monthName is set
+      const pdfPath = path.join(os.tmpdir(), `salary-slip-${slip.employeeName.replace(/\s+/g, '_')}-${slip.month}-${slip.year}.pdf`);
+      await generateSalarySlipPDF(slipObj, pdfPath);
+
+      const html = `<div style="font-family:Arial,sans-serif;">Dear <strong>${slip.employeeName}</strong>,<br>Your salary slip for ${monthNames[slip.month - 1]} ${slip.year} is attached as a PDF.<br><br>Regards,<br>${fromName}</div>`;
 
       await transporter.sendMail({
         from: `"${fromName}" <${fromEmail}>`,
         to: slip.employeeEmail,
         subject: `Salary Slip - ${monthNames[slip.month - 1]} ${slip.year}`,
-        html
+        html,
+        attachments: [
+          {
+            filename: `Salary Slip - ${monthNames[slip.month - 1]} ${slip.year}.pdf`,
+            path: pdfPath,
+            contentType: 'application/pdf',
+          },
+        ],
       });
 
       slip.status = 'sent';
@@ -275,6 +292,7 @@ router.post('/runs/:id/email-slips', async (req, res) => {
 
     res.json({ message: `Salary slips emailed to ${sentCount} employees` });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: `Failed to email slips: ${err.message}` });
   }
 });

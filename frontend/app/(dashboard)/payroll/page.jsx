@@ -100,8 +100,29 @@ export default function PayrollPage() {
                           <td className="px-4 py-3"><p className="font-medium">{slip.employeeName}</p><p className="text-xs text-gray-400">{slip.employeeEmail}</p></td>
                           <td className="px-4 py-3 text-right">₹{slip.basicSalary?.toLocaleString()}</td>
                           <td className="px-4 py-3 text-right">₹{slip.hra?.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right text-red-500">-₹{((slip.deductions || 0) + (slip.tax || 0)).toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right font-bold">₹{slip.netSalary?.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right text-red-500">
+                            -₹{
+                              ((Array.isArray(slip.facilities) && slip.facilities.length > 0)
+                                ? slip.facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0)
+                                : 0
+                              )
+                              .toLocaleString()
+                            }
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold">
+                            ₹{
+                              (
+                                (slip.basicSalary || 0)
+                                + (slip.hra || 0)
+                                + (slip.allowances || 0)
+                                + (slip.bonus || 0)
+                                - ((Array.isArray(slip.facilities) && slip.facilities.length > 0)
+                                    ? slip.facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0)
+                                    : 0)
+                                - (slip.tax || 0)
+                              ).toLocaleString()
+                            }
+                          </td>
                           <td className="px-4 py-3 text-center"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[slip.status]}`}>{slip.status}</span></td>
                         </tr>
                       ))}

@@ -4,16 +4,60 @@ const salarySlipSchema = new mongoose.Schema({
   employee: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   employeeName: { type: String, required: true },
   employeeEmail: { type: String, required: true },
+  employeeId: { type: String, default: '' },
   designation: { type: String, default: '' },
-  basicSalary: { type: Number, required: true },
+  department: { type: String, default: '' },
+  workLocation: { type: String, default: '' },
+  month: { type: Number, required: true, min: 1, max: 12 },
+  monthName: { type: String, default: '' },
+  year: { type: Number, required: true },
+
+  // Company Info
+  companyName: { type: String, default: 'CodexMatrix Pvt. Ltd.' },
+  companyAddress: { type: String, default: 'Dharamshala, Himachal Pradesh, India' },
+  companyEmail: { type: String, default: 'hr@codexmatrix.com' },
+  companyWebsite: { type: String, default: 'www.codexmatrix.com' },
+
+  // Dynamic arrays for tables
+  earnings: [
+    {
+      component: String,
+      amount: String,
+      remarks: String
+    }
+  ],
+  facilities: [
+    {
+      head: String,
+      cost: String,
+      remarks: String
+    }
+  ],
+  totalValue: [
+    {
+      component: String,
+      amount: String,
+      remarks: String
+    }
+  ],
+
+  // Payment and authorization
+  paymentDetails: { type: String, default: '' },
+  authorizedBy: { type: String, default: '' },
+
+  // Notes
+  notes1: { type: String, default: '' },
+  notes2: { type: String, default: '' },
+
+  // Legacy fields for compatibility (optional)
+  basicSalary: { type: Number, default: 0 },
   hra: { type: Number, default: 0 },
   allowances: { type: Number, default: 0 },
   deductions: { type: Number, default: 0 },
   tax: { type: Number, default: 0 },
-  netSalary: { type: Number, required: true },
+  netSalary: { type: Number, default: 0 },
   bonus: { type: Number, default: 0 },
-  month: { type: Number, required: true, min: 1, max: 12 },
-  year: { type: Number, required: true },
+
   status: {
     type: String,
     enum: ['draft', 'processing', 'completed', 'sent'],
