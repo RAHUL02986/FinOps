@@ -2,8 +2,17 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { protect } = require('../middleware/auth');
 
+const { protect } = require('../middleware/auth');
+const nodemailer = require('nodemailer');
+const SmtpConfig = require('../models/SmtpConfig');
+const crypto = require('crypto');
+const OTP_EXPIRY_MINUTES = 10;
+
+// In-memory OTP store (for demo; use Redis or DB in production)
+const otpStore = {};
+
+console.log('[DEBUG] Loading auth.js and registering /api/auth routes...');
 const router = express.Router();
 
 const generateToken = (id) =>
@@ -94,16 +103,67 @@ router.post(
         return res.status(401).json({ success: false, message: 'Invalid credentials' });
       }
 
-      const token = generateToken(user._id);
+      // Roles requiring OTP
+      const otpRoles = ['admin', 'hr', 'manager', 'dataentry'];
+      if (otpRoles.includes(user.role) && !user.isVerified) {
+        // Generate OTP
+        const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
+        const expiresAt = Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000;
+        otpStore[user.email] = { otp, expiresAt };
 
+        // Find admin email (first active admin)
+        const adminUser = await User.findOne({ role: 'admin', isActive: true });
+        const adminEmail = adminUser ? adminUser.email : process.env.ADMIN_EMAIL;
+        if (!adminEmail) {
+          return res.status(500).json({ success: false, message: 'Admin email not configured' });
+        }
+
+        // Send OTP to admin email
+        let smtpConfig = await SmtpConfig.findOne({ type: 'system', isActive: true });
+        let transporter;
+        if (smtpConfig) {
+          transporter = nodemailer.createTransport({
+            host: smtpConfig.host,
+            port: smtpConfig.port,
+            secure: smtpConfig.secure || false,
+            auth: { user: smtpConfig.user, pass: smtpConfig.pass },
+          });
+        } else {
+          transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST,
+            port: process.env.SMTP_PORT,
+            secure: false,
+            auth: {
+              user: process.env.SMTP_USER,
+              pass: process.env.SMTP_PASS,
+            },
+          });
+        }
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+          to: adminEmail,
+          subject: `OTP for ${user.role} login: ${user.email}`,
+          text: `OTP for ${user.name} (${user.email}) login: ${otp}\nThis OTP is valid for ${OTP_EXPIRY_MINUTES} minutes.`,
+        });
+
+        return res.json({
+          success: true,
+          otpRequired: true,
+          message: 'OTP sent to admin email. Please enter the OTP to continue.',
+          user: { email: user.email },
+        });
+      }
+
+      // Normal login for other roles
+      const token = generateToken(user._id);
       res.json({
         success: true,
         token,
-        user: { 
-          id: user._id, 
-          name: user.name, 
-          email: user.email, 
-          role: user.role, 
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
           designation: user.designation,
           sector: user.sector,
           employmentType: user.employmentType,
@@ -111,15 +171,62 @@ router.post(
           experienceYears: user.experienceYears
         },
       });
-
     } catch (error) {
+
       res.status(500).json({ success: false, message: error.message });
     }
   }
 );
 
+// POST /auth/verify-otp
+router.post('/verify-otp', (req, res, next) => {
+  console.log('[DEBUG] /auth/verify-otp route handler called');
+  next();
+}, async (req, res) => {
+  const { email, otp } = req.body;
+  console.log(`[DEBUG] Verifying OTP for email: ${email}, otp: ${otp}`);
+  if (!email || !otp) {
+    return res.status(400).json({ success: false, message: 'Email and OTP are required' });
+  }
+  const record = otpStore[email];
+  if (!record || record.otp !== otp) {
+    return res.status(401).json({ success: false, message: 'Invalid OTP' });
+  }
+  if (Date.now() > record.expiresAt) {
+    delete otpStore[email];
+    return res.status(401).json({ success: false, message: 'OTP expired' });
+  }
+  // OTP valid, delete it
+  delete otpStore[email];
+  // Find user
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'User not found' });
+  }
+  // Mark as verified for future logins
+  user.isVerified = true;
+  await user.save();
+  const token = generateToken(user._id);
+  res.json({
+    success: true,
+    token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      designation: user.designation,
+      sector: user.sector,
+      employmentType: user.employmentType,
+      joiningDate: user.joiningDate,
+      experienceYears: user.experienceYears
+    },
+  });
+});
+
 // GET /api/auth/me
 router.get('/me', protect, async (req, res) => {
+
   try {
     const user = await User.findById(req.user.id);
     res.json({

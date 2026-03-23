@@ -38,6 +38,10 @@ const UserSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
     // Removed duplicate fields
   },
   { timestamps: true }
