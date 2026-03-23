@@ -123,22 +123,31 @@ router.post(
         let transporter;
         if (smtpConfig) {
           transporter = nodemailer.createTransport({
-            host: smtpConfig.host,
-            port: smtpConfig.port,
-            secure: smtpConfig.secure || false,
+            host: smtpConfig.host,            
+            port: Number(smtpConfig.port), 
+            secure: smtpConfig.port === 465, 
             auth: { user: smtpConfig.user, pass: smtpConfig.pass },
+            tls: { rejectUnauthorized: false } // Helps on Render
           });
         } else {
           transporter = nodemailer.createTransport({
             host: process.env.SMTP_HOST,
-            port: process.env.SMTP_PORT,
+            port: Number(process.env.SMTP_PORT) || 587,
             secure: false,
             auth: {
               user: process.env.SMTP_USER,
               pass: process.env.SMTP_PASS,
             },
+            tls: {
+              rejectUnauthorized: false // Crucial for Gmail + Cloud hosting
+            }
           });
-        }
+        }try {
+            await transporter.verify();
+            console.log("SMTP connection verified successfully");
+          } catch (err) {
+            console.error("SMTP Verification Failed:", err);
+          }
         await transporter.sendMail({
           from: process.env.SMTP_FROM || process.env.SMTP_USER,
           to: adminEmail,
