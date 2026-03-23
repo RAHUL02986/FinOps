@@ -27,11 +27,25 @@ export function AuthProvider({ children }) {
     setUser(userData);
   };
 
-  const login = async (email, password) => {
-    const res = await authAPI.login({ email, password });
-    const { token, user: userData } = res.data;
-    persistSession(token, userData);
-    return userData;
+  // Enhanced login to handle OTP flow
+  const login = async (email, password, otp) => {
+    if (otp) {
+      // OTP verification step
+      const res = await authAPI.verifyOtp({ email, otp });
+      const { token, user: userData } = res.data;
+      persistSession(token, userData);
+      return { user: userData };
+    } else {
+      // Initial login step
+      const res = await authAPI.login({ email, password });
+      if (res.data.otpRequired) {
+        // Return info to prompt for OTP
+        return { otpRequired: true, email: res.data.user.email };
+      }
+      const { token, user: userData } = res.data;
+      persistSession(token, userData);
+      return { user: userData };
+    }
   };
 
   const register = async (name, email, password) => {

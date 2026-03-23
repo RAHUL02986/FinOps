@@ -5,10 +5,45 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../../context/AuthContext';
 
+function OtpPrompt({ email, onSubmit, error, loading }) {
+  const [otp, setOtp] = useState('');
+  return (
+    <form
+      onSubmit={e => {
+        e.preventDefault();
+        onSubmit(otp);
+      }}
+      className="space-y-5"
+    >
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
+      )}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="otp">OTP</label>
+        <input
+          id="otp"
+          name="otp"
+          type="text"
+          required
+          value={otp}
+          onChange={e => setOtp(e.target.value)}
+          className="input"
+          placeholder="Enter OTP sent to admin"
+        />
+      </div>
+      <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
+        {loading ? 'Verifying…' : 'Verify OTP'}
+      </button>
+    </form>
+  );
+}
+
 export default function LoginPage() {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpEmail, setOtpEmail] = useState('');
   const { login } = useAuth();
   const router = useRouter();
 
@@ -37,10 +72,31 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const user = await login(formData.email, formData.password);
-      router.push(user.role === 'superadmin' ? '/admin' : '/dashboard');
+      const result = await login(formData.email, formData.password);
+      if (result.otpRequired) {
+        setOtpStep(true);
+        setOtpEmail(result.email);
+        setError('');
+      } else if (result.user) {
+        router.push(result.user.role === 'superadmin' ? '/admin' : '/dashboard');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOtpSubmit = async (otp) => {
+    setError('');
+    setLoading(true);
+    try {
+      const result = await login(otpEmail, undefined, otp);
+      if (result.user) {
+        router.push(result.user.role === 'superadmin' ? '/admin' : '/dashboard');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'OTP verification failed.');
     } finally {
       setLoading(false);
     }
@@ -61,63 +117,65 @@ export default function LoginPage() {
           <p className="text-gray-500 text-sm mt-1">Sign in to your account</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="email">
-              Email address
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={formData.email}
-              onChange={handleChange}
-              className="input"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="password">
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={formData.password}
-              onChange={handleChange}
-              className="input"
-              placeholder="••••••••"
-            />
-          </div>
-
-          <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                </svg>
-                Signing in…
-              </span>
-            ) : (
-              'Sign in'
+        {otpStep ? (
+          <OtpPrompt email={otpEmail} onSubmit={handleOtpSubmit} error={error} loading={loading} />
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
             )}
-          </button>
-        </form>
 
-        
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="email">
+                Email address
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={formData.email}
+                onChange={handleChange}
+                className="input"
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="password">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={formData.password}
+                onChange={handleChange}
+                className="input"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                  Signing in…
+                </span>
+              ) : (
+                'Sign in'
+              )}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
