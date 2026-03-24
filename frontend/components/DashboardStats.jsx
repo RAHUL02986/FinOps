@@ -17,64 +17,61 @@ const StatCard = ({ title, value, icon, bgColor, textColor, subtext }) => (
 );
 
 export default function DashboardStats({ summary, role }) {
-  const netBalance = (summary?.netBalance ?? 0);
+  const netBalance = summary?.netBalance ?? 0;
   const netColor = netBalance >= 0 ? 'text-green-600' : 'text-red-600';
   const isElevated = ['superadmin', 'hr', 'manager'].includes(role);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-      {isElevated && (
-        <StatCard
-          title="Total Income"
-          value={formatCurrency(summary?.totalIncome)}
-          bgColor="bg-green-100"
-          textColor="text-green-700"
-          icon={
-            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M7 11l5-5m0 0l5 5m-5-5v12" />
-            </svg>
-          }
-        />
-      )}
-      {isElevated && (
-        <StatCard
-          title="Total Expenses"
-          value={formatCurrency(summary?.totalExpenses)}
-          bgColor="bg-red-100"
-          textColor="text-red-600"
-          icon={
-            <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M17 13l-5 5m0 0l-5-5m5 5V6" />
-            </svg>
-          }
-        />
-      )}
-      {isElevated && (
-        <StatCard
-          title="Net Balance"
-          value={formatCurrency(netBalance)}
-          bgColor={netBalance >= 0 ? 'bg-blue-100' : 'bg-orange-100'}
-          textColor={netColor}
-          icon={
-            <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
-            </svg>
-          }
-        />
-      )}
+      {/* 1. Profit/Loss (Net Balance) */}
       <StatCard
-        title="Transactions"
-        value={summary?.transactionCount ?? 0}
-        bgColor="bg-purple-100"
-        textColor="text-purple-700"
-        subtext="in selected period"
+        title="Profit / Loss (Month)"
+        value={formatCurrency(netBalance)}
+        bgColor={netBalance >= 0 ? 'bg-green-100' : 'bg-red-100'}
+        textColor={netColor}
         icon={
-          <svg className="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              d="M7 11l5-5m0 0l5 5m-5-5v12" />
+          </svg>
+        }
+      />
+      {/* 2. Available Funds */}
+      <StatCard
+        title="Available Funds"
+        value={formatCurrency(summary?.availableFunds)}
+        bgColor="bg-blue-100"
+        textColor="text-blue-700"
+        icon={
+          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 0V4m0 12v4" />
+          </svg>
+        }
+      />
+      {/* 3. OD Limit Used */}
+      <StatCard
+        title="OD Limit Used"
+        value={formatCurrency(summary?.odLimitUsed)}
+        bgColor="bg-yellow-100"
+        textColor="text-yellow-700"
+        icon={
+          <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M17 9V7a5 5 0 00-10 0v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2z" />
+          </svg>
+        }
+      />
+      {/* 4. Revenue (Total Income) */}
+      <StatCard
+        title="Revenue this Month"
+        value={formatCurrency(summary?.totalIncome)}
+        bgColor="bg-green-100"
+        textColor="text-green-700"
+        icon={
+          <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 0V4m0 12v4" />
           </svg>
         }
       />

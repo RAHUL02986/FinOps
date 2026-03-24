@@ -33,7 +33,9 @@ router.get('/summary', async (req, res) => {
     // if (req.user.role !== 'superadmin' && req.user.role !== 'hr') {
     //   matchBase.user = new mongoose.Types.ObjectId(req.user.id);
     // }
-    const [incomeAgg, expenseAgg, recentTxns] = await Promise.all([
+
+    const Account = require('../models/Account');
+    const [incomeAgg, expenseAgg, recentTxns, accounts, odAccounts] = await Promise.all([
       Transaction.aggregate([
         { $match: { ...matchBase, type: 'income' } },
         { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
@@ -43,6 +45,8 @@ router.get('/summary', async (req, res) => {
         { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
       ]),
       Transaction.find(matchBase).sort({ date: -1 }).limit(10),
+      Account.find({ isActive: true }),
+      Account.find({ isActive: true, type: 'od_cc' }),
     ]);
 
     const totalIncome = incomeAgg[0]?.total || 0;
@@ -50,6 +54,12 @@ router.get('/summary', async (req, res) => {
     const transactionCount = (incomeAgg[0]?.count || 0) + (expenseAgg[0]?.count || 0);
 
     const recentTransactions = recentTxns.map((t) => ({ ...t.toObject(), type: t.type }));
+
+    // Calculate available funds (sum of all account balances)
+    const availableFunds = accounts.reduce((sum, acc) => sum + (acc.currentBalance || 0), 0);
+
+    // Calculate OD limit used (sum of all OD account balances)
+    const odLimitUsed = odAccounts.reduce((sum, acc) => sum + (acc.currentBalance || 0), 0);
 
     res.json({
       success: true,
@@ -59,6 +69,8 @@ router.get('/summary', async (req, res) => {
         netBalance: totalIncome - totalExpenses,
         transactionCount,
         recentTransactions,
+        availableFunds,
+        odLimitUsed,
       },
     });
   } catch (error) {
