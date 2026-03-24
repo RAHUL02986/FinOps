@@ -9,6 +9,7 @@ import { settingsAPI, categoriesAPI, usersAPI } from '../../../lib/api';
 import toast from 'react-hot-toast';
 
   const roleOptions = [
+    { value: 'employee', label: 'Employee' },
     { value: 'admin', label: 'Admin' },
     { value: 'hr', label: 'HR' },
     { value: 'manager', label: 'Manager' },

@@ -159,14 +159,20 @@ export default function UsersPage() {
                     <td className="px-6 py-4">
                       <span className={`badge ${
                         u.role === 'superadmin' ? 'bg-purple-100 text-purple-700'
+                        : u.role === 'admin' ? 'bg-indigo-100 text-indigo-700'
                         : u.role === 'manager' ? 'bg-blue-100 text-blue-700'
                         : u.role === 'hr' ? 'bg-amber-100 text-amber-700'
+                        : u.role === 'dataentry' ? 'bg-green-100 text-green-700'
+                        : u.role === 'employee' ? 'bg-gray-100 text-gray-700'
                         : 'bg-gray-100 text-gray-600'
                       }`}>
                         {u.role === 'superadmin' ? 'Super Admin'
+                          : u.role === 'admin' ? 'Admin'
                           : u.role === 'manager' ? 'Manager'
                           : u.role === 'hr' ? 'HR'
-                          : 'User'}
+                          : u.role === 'dataentry' ? 'Data Entry'
+                          : u.role === 'employee' ? 'Employee'
+                          : u.role}
                       </span>
                     </td>
                     <td className="px-6 py-4">

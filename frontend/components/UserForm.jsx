@@ -9,7 +9,7 @@ export default function UserForm({ user, onClose }) {
     name: user?.name ?? '',
     email: user?.email ?? '',
     password: '',
-    role: user?.role ?? 'dataentry',
+    role: user?.role ?? 'employee',
     designation: user?.designation ?? '',
     sector: user?.sector ?? 'IT',
     employmentType: user?.employmentType ?? 'full-time',
@@ -129,6 +129,7 @@ export default function UserForm({ user, onClose }) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
             <select name="role" value={form.role} onChange={handleChange} className="input">
+              <option value="employee">Employee</option>
               <option value="dataentry">Data Entry</option>
               <option value="hr">HR</option>
               <option value="manager">Manager</option>
