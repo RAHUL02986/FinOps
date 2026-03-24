@@ -44,8 +44,8 @@ router.get('/', authorize('superadmin', 'admin', 'hr', 'manager', 'dataentry'), 
   }
 });
 
-// All other user routes restricted to superadmin and admin
-router.use(authorize('superadmin', 'admin'));
+// All other user routes restricted to superadmin, admin, and hr
+router.use(authorize('superadmin', 'admin', 'hr'));
 
 // POST /api/users
   router.post(

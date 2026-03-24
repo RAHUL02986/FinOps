@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
+import EmployeeActionsDropdown from './EmployeeActionsDropdown';
+import { useState, useEffect, useRef } from "react";
 import { usersAPI, teamsAPI, payrollAPI } from "../../../lib/api";
 import toast from "react-hot-toast";
 
@@ -136,12 +137,29 @@ export default function EmployeesPage() {
                             <span className="px-2 py-1 rounded bg-red-100 text-red-700 text-xs font-semibold">Terminated</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 flex gap-2">
-                          <button className="btn-action" title="Edit" onClick={() => { setEditEmployee(emp); setShowEmployeeForm(true); }}>Edit</button>
-                          <button className="btn-action" title="Salary" onClick={() => { setSalaryEmployee(emp); setShowSalaryModal(true); }}>Salary</button>
-                          <button className="btn-action" title="History" onClick={() => { setSalaryHistoryEmployee(emp); setShowSalaryHistory(true); }}>History</button>
-                          <button className="btn-action text-red-500 border-red-200" title="Delete" onClick={() => {/* TODO: handle delete */}}>🧑‍💼</button>
+                        <td className="px-4 py-3 relative">
+                          <EmployeeActionsDropdown
+                            employee={emp}
+                            onEdit={() => { setEditEmployee(emp); setShowEmployeeForm(true); }}
+                            onSalary={() => { setSalaryEmployee(emp); setShowSalaryModal(true); }}
+                            onHistory={() => { setSalaryHistoryEmployee(emp); setShowSalaryHistory(true); }}
+                            onToggleActive={async () => {
+                              if (emp.isActive !== false) {
+                                if (!window.confirm(`Terminate ${emp.name}? This will deactivate their account.`)) return;
+                              } else {
+                                if (!window.confirm(`Reactivate ${emp.name}? This will restore their account.`)) return;
+                              }
+                              try {
+                                await usersAPI.update(emp._id, { ...emp, isActive: emp.isActive === false });
+                                toast.success(emp.isActive !== false ? 'Employee terminated' : 'Employee reactivated');
+                                load();
+                              } catch (err) {
+                                toast.error(err.response?.data?.message || 'Failed to update status');
+                              }
+                            }}
+                          />
                         </td>
+
                       </tr>
                     ))
                   )}

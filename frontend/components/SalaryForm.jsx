@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { payrollAPI } from "../lib/api";
+import { payrollAPI, usersAPI } from "../lib/api";
 import toast from "react-hot-toast";
 
 export default function SalaryForm({ employee, onClose, onSaved }) {
@@ -29,10 +29,26 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
     notes: "",
   });
 
-  // Auto-fill with latest salary slip if available
+  // Auto-fill with latest salary slip if available and fetch employee details
   useEffect(() => {
-    async function fetchLatestSlip() {
+    async function fetchData() {
       if (!employee?._id) return;
+      // Fetch employee details
+      try {
+        const empRes = await usersAPI.getById(employee._id);
+        const empData = empRes.data;
+        setForm(f => ({
+          ...f,
+          employeeId: empData.employeeId || '',
+          department: empData.department || '',
+          workLocation: empData.workLocation || '',
+          designation: empData.designation || '',
+          // Add more fields as needed
+        }));
+      } catch (err) {
+        // ignore error, use default
+      }
+      // Fetch latest salary slip
       try {
         const res = await payrollAPI.getSlips({ employee: employee._id });
         const slips = res.data;
@@ -59,7 +75,7 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
         // ignore error, use default
       }
     }
-    fetchLatestSlip();
+    fetchData();
     // Only run on mount or when employee changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employee?._id]);
