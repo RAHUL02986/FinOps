@@ -181,15 +181,16 @@ export default function TransactionsPage() {
               </button>
             </div>
             <div className="space-y-2">
-              <div><b>Date:</b> {new Date(viewTxn.date).toLocaleString()}</div>
+              <div><b>Date:</b> {viewTxn.date ? new Date(viewTxn.date).toLocaleDateString() : '-'}</div>
               <div><b>Type:</b> {viewTxn.type}</div>
-              <div><b>Amount:</b> ₹{viewTxn.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+              <div><b>Amount:</b> ₹{viewTxn.amount?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
               <div><b>Status:</b> {viewTxn.status}</div>
               <div><b>Account:</b> {viewTxn.account?.name || '-'}</div>
               <div><b>Team:</b> {viewTxn.team?.name || '-'}</div>
               <div><b>Employee:</b> {viewTxn.employee?.name || '-'}</div>
               <div><b>Category:</b> {viewTxn.category || '-'}</div>
               <div><b>Description:</b> {viewTxn.description || '-'}</div>
+              <div><b>Added By:</b> {viewTxn.user?.name || '-'} ({viewTxn.user?.role || '-'})</div>
             </div>
           </div>
         </div>

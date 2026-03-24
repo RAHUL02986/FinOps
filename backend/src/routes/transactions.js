@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
     }
     const total = await Transaction.countDocuments(filter);
     const txns = await Transaction.find(filter)
-      .populate('user', 'name email')
+      .populate('user', 'name email role')
       .populate('account', 'name bankName')
       .populate('team', 'name')
       .populate('employee', 'name email')
@@ -75,8 +75,15 @@ router.post(
       if (req.user.role === 'hr' || req.user.role === 'manager') status = 'Pending';
       if (req.user.role === 'dataentry') status = 'Draft';
 
+      // Ensure date is saved as full ISO string if provided
+      let txnDate = req.body.date;
+      if (txnDate && !txnDate.includes('T')) {
+        // If only date part, add current time
+        txnDate = new Date(txnDate).toISOString();
+      }
       const txn = await Transaction.create({
         ...req.body,
+        date: txnDate || undefined,
         user: req.user.id,
         status: status || undefined,
       });
