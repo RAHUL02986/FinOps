@@ -33,6 +33,16 @@ const UserSchema = new mongoose.Schema(
       maxlength: [50, 'Designation cannot exceed 50 characters'],
       default: '',
     },
+    phone: {
+      type: String,
+      trim: true,
+      maxlength: [20, 'Phone number cannot exceed 20 characters'],
+      default: '',
+    },
+    joiningDate: {
+      type: Date,
+      default: null,
+    },
     documents: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Document' }],
     isActive: {
       type: Boolean,

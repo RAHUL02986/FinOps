@@ -65,7 +65,7 @@ router.use(authorize('superadmin', 'admin', 'hr'));
       }
 
       try {
-        const { name, email, password, role = 'employee', designation = '', sector = 'IT', employmentType = 'full-time', joiningDate, experienceYears = 0 } = req.body;
+        const { name, email, password, role = 'employee', designation = '', phone = '', sector = 'IT', employmentType = 'full-time', joiningDate, experienceYears = 0 } = req.body;
 
         const exists = await User.findOne({ email });
         if (exists) {
@@ -78,6 +78,7 @@ router.use(authorize('superadmin', 'admin', 'hr'));
           password, 
           role, 
           designation, 
+          phone,
           sector, 
           employmentType, 
           joiningDate, 
@@ -112,7 +113,7 @@ router.get('/:id', async (req, res) => {
 // PUT /api/users/:id
 router.put('/:id', async (req, res) => {
   try {
-    const { name, email, role, designation, sector, employmentType, joiningDate, experienceYears, isActive, password } = req.body;
+    const { name, email, role, designation, phone, sector, employmentType, joiningDate, experienceYears, isActive, password } = req.body;
 
     const user = await User.findById(req.params.id);
     if (!user) {
@@ -128,6 +129,7 @@ router.put('/:id', async (req, res) => {
     if (email !== undefined) user.email = email;
     if (role !== undefined) user.role = role;
     if (designation !== undefined) user.designation = designation;
+    if (phone !== undefined) user.phone = phone;
     if (sector !== undefined) user.sector = sector;
     if (employmentType !== undefined) user.employmentType = employmentType;
     if (joiningDate !== undefined) user.joiningDate = joiningDate || null;

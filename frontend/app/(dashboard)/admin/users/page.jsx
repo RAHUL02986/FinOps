@@ -133,7 +133,7 @@ export default function UsersPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  {['User', 'Role', 'Designation', 'Sector', 'Type', 'Exp', 'Joined', 'Status', 'Actions'].map((h) => (
+                  {['User', 'Role', 'Designation', 'Joined', 'Status', 'Actions'].map((h) => (
                     <th key={h} className={`px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider ${h === 'Actions' ? 'text-right' : 'text-left'}`}>
                       {h}
                     </th>
@@ -182,15 +182,7 @@ export default function UsersPage() {
                         <span className="text-xs text-gray-300 italic">Not set</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-gray-600 font-medium capitalize">
-                      {u.sector}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600 font-medium capitalize">
-                      {u.employmentType?.replace('-', ' ')}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      {u.experienceYears ? `${u.experienceYears} yrs` : '—'}
-                    </td>
+                    {/* Removed Sector, Type, Exp columns */}
                     <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
                       {u.joiningDate ? fmtDate(u.joiningDate) : '—'}
                     </td>

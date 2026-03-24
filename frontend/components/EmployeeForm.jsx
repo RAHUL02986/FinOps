@@ -29,18 +29,21 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
     e.preventDefault();
     setLoading(true);
     try {
+      const payload = {
+        employeeId: form.employeeId,
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        designation: form.designation,
+        team: form.team,
+        joiningDate: form.joiningDate,
+        isActive: form.status === "Active",
+      };
       if (employee) {
-        await usersAPI.update(employee._id, {
-          ...form,
-          isActive: form.status === "Active",
-        });
+        await usersAPI.update(employee._id, payload);
         toast.success("Employee updated");
       } else {
-        await usersAPI.create({
-          ...form,
-          isActive: form.status === "Active",
-          password: "changeme123", // Default password, should be changed by user
-        });
+        await usersAPI.create({ ...payload, password: "changeme123" }); // Default password, should be changed by user
         toast.success("Employee created");
       }
       onSaved?.();
