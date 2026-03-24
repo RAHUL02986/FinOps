@@ -5,14 +5,14 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { settingsAPI, categoriesAPI } from '../../../lib/api';
+import { settingsAPI, categoriesAPI, usersAPI } from '../../../lib/api';
 import toast from 'react-hot-toast';
 
   const roleOptions = [
-    { value: 'Admin', label: 'Admin' },
-    { value: 'HR', label: 'HR' },
-    { value: 'Manager', label: 'Manager' },
-    { value: 'Data Entry', label: 'Data Entry' },
+    { value: 'admin', label: 'Admin' },
+    { value: 'hr', label: 'HR' },
+    { value: 'manager', label: 'Manager' },
+    { value: 'dataentry', label: 'Data Entry' },
   ];
 
 
@@ -33,13 +33,8 @@ const SMTP_TYPES = [
 
 
 export default function SettingsPage() {
-    // Users & Roles state (demo data)
-    const [users, setUsers] = useState([
-      { _id: '1', name: 'Data Entry User', email: 'michelle06.cmx@gmail.com', role: 'Data Entry' },
-      { _id: '2', name: 'HR User', email: 'himanshukumar.codexmatrix@gmail.com', role: 'HR' },
-      { _id: '3', name: 'Manager User', email: 'rahul.codexmatrix@gmail.com', role: 'Manager' },
-      { _id: '4', name: 'Administrator', email: 'mikecmx01@gmail.com', role: 'Admin' },
-    ]);
+    // Users & Roles state (fetched from backend)
+    const [users, setUsers] = useState([]);
   const { user } = useAuth();
   const [tab, setTab] = useState('categories');
   // SMTP state
@@ -54,11 +49,24 @@ export default function SettingsPage() {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryType, setNewCategoryType] = useState("Income");
 
+
   useEffect(() => {
     if (tab === 'smtp' && user?.role === 'superadmin') loadConfigs();
     if (tab === 'categories') fetchCategories();
-    // TODO: fetch users, notifications as needed
+    if (tab === 'users') fetchUsers();
+    // TODO: fetch notifications as needed
   }, [tab, user]);
+
+  // Fetch users from backend
+  const fetchUsers = async () => {
+    try {
+      const res = await usersAPI.getAll();
+      setUsers(res.data.data || []);
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.response?.data?.error || err.message || 'Failed to load users';
+      toast.error(`Failed to load users: ${msg}`);
+    }
+  };
 
   const fetchCategories = async () => {
     try {
@@ -347,10 +355,26 @@ export default function SettingsPage() {
                 <select
                   className="border rounded px-3 py-1 text-sm bg-white"
                   value={u.role}
-                  onChange={e => {
+                  onChange={async e => {
                     const newRole = e.target.value;
-                    setUsers(prev => prev.map((user, i) => i === idx ? { ...user, role: newRole } : user));
-                    toast.success(`Role updated to ${newRole}`);
+                    try {
+                      // Send all user fields to backend
+                      await usersAPI.update(u._id, {
+                        name: u.name,
+                        email: u.email,
+                        designation: u.designation || '',
+                        sector: u.sector || 'IT',
+                        employmentType: u.employmentType || 'full-time',
+                        joiningDate: u.joiningDate || null,
+                        experienceYears: u.experienceYears || 0,
+                        isActive: u.isActive !== undefined ? u.isActive : true,
+                        role: newRole
+                      });
+                      setUsers(prev => prev.map((user, i) => i === idx ? { ...user, role: newRole } : user));
+                      toast.success(`Role updated to ${newRole}`);
+                    } catch (err) {
+                      toast.error('Failed to update role.');
+                    }
                   }}
                 >
                   {roleOptions.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}

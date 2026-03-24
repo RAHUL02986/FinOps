@@ -9,7 +9,7 @@ const router = express.Router();
 router.use(protect);
 
 // GET /api/users (open to all roles)
-router.get('/', authorize('superadmin', 'hr', 'manager', 'dataentry'), async (req, res) => {
+router.get('/', authorize('superadmin', 'admin', 'hr', 'manager', 'dataentry'), async (req, res) => {
   try {
     const { search, isActive, page = 1, limit = 10 } = req.query;
     const filter = {};
@@ -44,8 +44,8 @@ router.get('/', authorize('superadmin', 'hr', 'manager', 'dataentry'), async (re
   }
 });
 
-// All other user routes restricted to superadmin
-router.use(authorize('superadmin'));
+// All other user routes restricted to superadmin and admin
+router.use(authorize('superadmin', 'admin'));
 
 // POST /api/users
   router.post(
