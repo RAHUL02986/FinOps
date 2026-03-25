@@ -198,7 +198,13 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
       </div>
       <div className="col-span-1">
         <label className="block text-sm font-medium mb-1">Designation</label>
-        <input name="designation" value={form.designation} className="input w-full bg-gray-100" readOnly />
+        <input
+          name="designation"
+          value={form.designation}
+          onChange={handleChange}
+          className={`input w-full${form.reason === 'Promotion' ? '' : ' bg-gray-100'}`}
+          readOnly={form.reason !== 'Promotion'}
+        />
       </div>
       <div className="col-span-1">
         <label className="block text-sm font-medium mb-1">Work Location</label>

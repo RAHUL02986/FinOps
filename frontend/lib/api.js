@@ -167,6 +167,7 @@ export const payrollAPI = {
   getSlips: (params) => api.get('/payroll/slips', { params }),
   updateSlip: (id, data) => api.put(`/payroll/slips/${id}`, data),
   createSlip: (data) => api.post('/payroll/slips', data),
+  getMissingSlips: (month, year) => api.get('/payroll/missing-slips', { params: { month, year } }),
 };
 
 // ── Goals ─────────────────────────────────────────────────────────────────────

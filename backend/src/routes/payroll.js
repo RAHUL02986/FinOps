@@ -1,3 +1,4 @@
+
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
@@ -7,6 +8,33 @@ const User = require('../models/User');
 const SmtpConfig = require('../models/SmtpConfig');
 const nodemailer = require('nodemailer');
 const path = require('path');
+
+// GET employees missing a salary slip for a given month/year
+router.get('/missing-slips', async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    if (!month || !year) {
+      return res.status(400).json({ message: 'month and year are required' });
+    }
+    // Get all active employees (except superadmin)
+    const employees = await User.find({ isActive: true, role: { $ne: 'superadmin' } });
+    // Get all slips for this month/year
+    const slips = await SalarySlip.find({ month: parseInt(month), year: parseInt(year) });
+    const slipEmployeeIds = new Set(slips.map(s => s.employee.toString()));
+    // Employees without a slip for this period
+    const missing = employees.filter(e => !slipEmployeeIds.has(e._id.toString()));
+    res.json(missing.map(e => ({
+      _id: e._id,
+      name: e.name,
+      email: e.email,
+      employeeId: e.employeeId,
+      designation: e.designation,
+      department: e.department
+    })));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 router.use(protect);
 router.use(authorize('superadmin', 'hr'));
@@ -82,6 +110,17 @@ router.post('/runs', async (req, res) => {
       slipData.designation = emp.designation || '';
       // Always set latest work location from .env
       slipData.workLocation = process.env.WORK_LOCATION || '';
+      // Recalculate deductions and netSalary using the correct formula
+      const earnings = slipData.earnings || [];
+      const extraDeductions = slipData.extraDeductions || [];
+      const facilities = slipData.facilities || [];
+      const earningsTotal = Array.isArray(earnings) ? earnings.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0) : 0;
+      const extraDeductionsTotal = Array.isArray(extraDeductions) ? extraDeductions.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0) : 0;
+      const facilitiesTotal = Array.isArray(facilities) ? facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0) : 0;
+      const gross = Number(slipData.basicSalary) + Number(slipData.hra) + Number(slipData.allowances) + Number(slipData.bonus) + earningsTotal;
+      const totalDeductions = facilitiesTotal + extraDeductionsTotal;
+      slipData.deductions = totalDeductions;
+      slipData.netSalary = gross - totalDeductions;
       const slip = await SalarySlip.create(slipData);
       slips.push(slip._id);
     }
@@ -142,12 +181,19 @@ router.post('/slips', async (req, res) => {
       employee, employeeName, employeeEmail, employeeId, designation, department, workLocation,
       month, monthName, year,
       companyName, companyAddress, companyEmail, companyWebsite,
-      earnings, extraDeductions, facilities, totalValue,
+      earnings = [], extraDeductions = [], facilities = [], totalValue,
       paymentDetails, authorizedBy, notes1, notes2,
       // legacy fields for compatibility
-      basicSalary, hra, allowances, deductions, tax, netSalary, bonus,
+      basicSalary = 0, hra = 0, allowances = 0, deductions = 0, tax = 0, bonus = 0,
       status
     } = req.body;
+    // Calculate totals
+    const earningsTotal = Array.isArray(earnings) ? earnings.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0) : 0;
+    const extraDeductionsTotal = Array.isArray(extraDeductions) ? extraDeductions.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0) : 0;
+    const facilitiesTotal = Array.isArray(facilities) ? facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0) : 0;
+    const gross = Number(basicSalary) + Number(hra) + Number(allowances) + Number(bonus) + earningsTotal;
+    const totalDeductions = facilitiesTotal + extraDeductionsTotal;
+    const netSalary = gross - totalDeductions;
     if (!employee || !employeeName || !employeeEmail || !month || !year) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
@@ -174,16 +220,23 @@ router.post('/slips', async (req, res) => {
       authorizedBy,
       notes1,
       notes2,
-      // legacy fields
-      basicSalary,
-      hra,
-      allowances,
-      deductions,
-      tax,
+      basicSalary: Number(basicSalary),
+      hra: Number(hra),
+      allowances: Number(allowances),
+      deductions: totalDeductions,
+      tax: Number(tax),
       netSalary,
-      bonus,
+      bonus: Number(bonus),
       status: status || 'completed',
     });
+    // If reason is Promotion and designation changed, update User's designation
+    if (req.body.reason === 'Promotion' && designation) {
+      const user = await User.findById(employee);
+      if (user && user.designation !== designation) {
+        user.designation = designation;
+        await user.save();
+      }
+    }
     // Only update employee's facilities in User profile (not earnings or extraDeductions)
     await User.findByIdAndUpdate(employee, {
       facilities
@@ -222,11 +275,30 @@ router.put('/slips/:id', async (req, res) => {
       'companyName', 'companyAddress', 'companyEmail', 'companyWebsite',
       'earnings', 'extraDeductions', 'facilities', 'totalValue',
       'paymentDetails', 'authorizedBy', 'notes1', 'notes2',
-      'basicSalary', 'hra', 'allowances', 'deductions', 'tax', 'netSalary', 'bonus', 'status'
+      'basicSalary', 'hra', 'allowances', 'tax', 'bonus', 'status'
     ];
     fields.forEach(f => {
       if (req.body[f] !== undefined) slip[f] = req.body[f];
     });
+    // Always recalculate deductions and netSalary
+    const earnings = slip.earnings || [];
+    const extraDeductions = slip.extraDeductions || [];
+    const facilities = slip.facilities || [];
+    const earningsTotal = Array.isArray(earnings) ? earnings.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0) : 0;
+    const extraDeductionsTotal = Array.isArray(extraDeductions) ? extraDeductions.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0) : 0;
+    const facilitiesTotal = Array.isArray(facilities) ? facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0) : 0;
+    const gross = Number(slip.basicSalary) + Number(slip.hra) + Number(slip.allowances) + Number(slip.bonus) + earningsTotal;
+    const totalDeductions = facilitiesTotal + extraDeductionsTotal;
+    slip.deductions = totalDeductions;
+    slip.netSalary = gross - totalDeductions;
+    // If reason is Promotion and designation changed, update User's designation
+    if (req.body.reason === 'Promotion' && slip.designation) {
+      const user = await User.findById(slip.employee);
+      if (user && user.designation !== slip.designation) {
+        user.designation = slip.designation;
+        await user.save();
+      }
+    }
     await slip.save();
     res.json(slip);
   } catch (err) {
