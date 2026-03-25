@@ -92,7 +92,7 @@ export default function ExpenseForm({ expense, onClose, users = null, defaultUse
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($) *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹) *</label>
             <input
               name="amount"
               type="number"

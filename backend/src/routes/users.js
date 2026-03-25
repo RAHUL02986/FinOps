@@ -11,8 +11,11 @@ router.use(protect);
 // GET /api/users (open to all roles)
 router.get('/', authorize('superadmin', 'admin', 'hr', 'manager', 'dataentry'), async (req, res) => {
   try {
-    const { search, isActive, page = 1, limit = 10 } = req.query;
+    const { search, isActive, page = 1, limit = 10, role } = req.query;
     const filter = {};
+    if (role) {
+      filter.role = role;
+    }
 
     if (search) {
       filter.$or = [
@@ -65,7 +68,7 @@ router.use(authorize('superadmin', 'admin', 'hr'));
       }
 
       try {
-        const { name, email, password, role = 'employee', designation = '', phone = '', sector = 'IT', employmentType = 'full-time', joiningDate, experienceYears = 0 } = req.body;
+        const { name, email, password, role = 'employee', designation = '', phone = '', sector = 'IT', employmentType = 'full-time', joiningDate, experienceYears = 0, employeeId = '', fatherName = '', motherName = '', alternateMobile = '', aadhaar = '', department = '' } = req.body;
 
         const exists = await User.findOne({ email });
         if (exists) {
@@ -82,7 +85,13 @@ router.use(authorize('superadmin', 'admin', 'hr'));
           sector, 
           employmentType, 
           joiningDate, 
-          experienceYears: Number(experienceYears) 
+          experienceYears: Number(experienceYears),
+          employeeId,
+          fatherName,
+          motherName,
+          alternateMobile,
+          aadhaar,
+          department
         });
 
         const userObj = await User.findById(user._id).select('-password');
@@ -113,7 +122,7 @@ router.get('/:id', async (req, res) => {
 // PUT /api/users/:id
 router.put('/:id', async (req, res) => {
   try {
-    const { name, email, role, designation, phone, sector, employmentType, joiningDate, experienceYears, isActive, password } = req.body;
+    const { name, email, role, designation, phone, sector, employmentType, joiningDate, experienceYears, isActive, password, employeeId, fatherName, motherName, alternateMobile, aadhaar, department } = req.body;
 
     const user = await User.findById(req.params.id);
     if (!user) {
@@ -126,6 +135,12 @@ router.put('/:id', async (req, res) => {
     }
 
     if (name !== undefined) user.name = name;
+    if (employeeId !== undefined) user.employeeId = employeeId;
+    if (fatherName !== undefined) user.fatherName = fatherName;
+    if (motherName !== undefined) user.motherName = motherName;
+    if (alternateMobile !== undefined) user.alternateMobile = alternateMobile;
+    if (aadhaar !== undefined) user.aadhaar = aadhaar;
+    if (department !== undefined) user.department = department;
     if (email !== undefined) user.email = email;
     if (role !== undefined) user.role = role;
     if (designation !== undefined) user.designation = designation;

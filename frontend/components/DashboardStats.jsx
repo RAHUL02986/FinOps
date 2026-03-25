@@ -1,7 +1,7 @@
 'use client';
 
 const formatCurrency = (n) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0);
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(n ?? 0);
 
 const StatCard = ({ title, value, icon, bgColor, textColor, subtext }) => (
   <div className="card flex items-center gap-4">

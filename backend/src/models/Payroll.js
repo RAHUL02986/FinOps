@@ -26,6 +26,13 @@ const salarySlipSchema = new mongoose.Schema({
       remarks: String
     }
   ],
+  extraDeductions: [
+    {
+      component: String,
+      amount: String,
+      remarks: String
+    }
+  ],
   facilities: [
     {
       head: String,

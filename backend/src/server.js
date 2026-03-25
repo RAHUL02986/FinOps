@@ -58,6 +58,7 @@ app.use('/api/recurring-expenses', require('./routes/recurringExpenses.reminder'
 app.use('/api/accounts', require('./routes/accounts'));
 app.use('/api/payroll', require('./routes/payroll'));
 app.use('/api/goals', require('./routes/goals'));
+app.use('/api/company', require('./routes/company'));
 app.use('/api/reports', require('./routes/reports'));
 
 // Health check

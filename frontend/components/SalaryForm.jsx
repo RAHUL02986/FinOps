@@ -3,20 +3,18 @@ import { payrollAPI, usersAPI } from "../lib/api";
 import toast from "react-hot-toast";
 
 export default function SalaryForm({ employee, onClose, onSaved }) {
+    const [hrName, setHrName] = useState("");
   const [form, setForm] = useState({
     effectiveFrom: new Date().toISOString().slice(0, 10),
     reason: "Joining",
     employeeId: '',
+    employeeName: '',
     department: '',
-    workLocation: '',
-    monthName: '',
-    companyName: 'CodexMatrix Pvt. Ltd.',
-    companyAddress: 'Dharamshala, Himachal Pradesh, India',
-    companyEmail: 'hr@codexmatrix.com',
-    companyWebsite: 'www.codexmatrix.com',
+    designation: '', // fetched, not editable
+    workLocation: '', // fetched, not editable
     earnings: [ { component: '', amount: '', remarks: '' } ],
+    extraDeductions: [ { component: '', amount: '', remarks: '' } ],
     facilities: [ { head: '', cost: '', remarks: '' } ],
-    totalValue: [ { component: '', amount: '', remarks: '' } ],
     paymentDetails: '',
     authorizedBy: '',
     notes1: '',
@@ -31,24 +29,45 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
 
   // Auto-fill with latest salary slip if available and fetch employee details
   useEffect(() => {
+    // Fetch HR users and set the first HR name
+    async function fetchHR() {
+      try {
+        const res = await usersAPI.getAll({ role: 'hr' });
+        const hrList = res.data.data || [];
+        if (hrList.length > 0) {
+          setHrName(hrList[0].name);
+          setForm(f => ({ ...f, authorizedBy: hrList[0].name }));
+        }
+      } catch (err) {
+        // ignore error
+      }
+    }
+    fetchHR();
     async function fetchData() {
       if (!employee?._id) return;
-      // Fetch employee details
       try {
         const empRes = await usersAPI.getById(employee._id);
-        const empData = empRes.data;
-        setForm(f => ({
-          ...f,
-          employeeId: empData.employeeId || '',
-          department: empData.department || '',
-          workLocation: empData.workLocation || '',
-          designation: empData.designation || '',
-          // Add more fields as needed
-        }));
+        const empData = empRes.data.data;
+        // Fetch work location from backend API (correct endpoint)
+        fetch('/api/company')
+          .then(res => res.json())
+          .then(company => {
+            setForm(f => ({
+              ...f,
+              employeeId: empData.employeeId || '',
+              employeeName: empData.name || '',
+              department: empData.department || '',
+              designation: empData.designation || '',
+              workLocation: company.workLocation || '',
+              facilities: Array.isArray(empData.facilities) && empData.facilities.length > 0 ? empData.facilities : [{ head: '', cost: '', remarks: '' }],
+              earnings: Array.isArray(empData.earnings) && empData.earnings.length > 0 ? empData.earnings : [{ component: '', amount: '', remarks: '' }],
+              extraDeductions: Array.isArray(empData.extraDeductions) && empData.extraDeductions.length > 0 ? empData.extraDeductions : [{ component: '', amount: '', remarks: '' }],
+            }));
+          });
       } catch (err) {
         // ignore error, use default
       }
-      // Fetch latest salary slip
+      // Fetch latest salary slip for other fields
       try {
         const res = await payrollAPI.getSlips({ employee: employee._id });
         const slips = res.data;
@@ -101,8 +120,19 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
     setForm(f => ({ ...f, [arrName]: f[arrName].filter((_, i) => i !== idx) }));
   };
 
-  const gross = Number(form.basicSalary) + Number(form.hra) + Number(form.allowances) + Number(form.bonus);
-  const net = gross - Number(form.deductions);
+  // Calculate total earnings (sum of all earnings amounts)
+  const earningsTotal = form.earnings.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
+  // Calculate total extra deductions (sum of all extra deduction amounts)
+  const extraDeductionsTotal = form.extraDeductions.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
+  // Calculate total facilities/expenses (sum of all facilities costs)
+  const facilitiesTotal = form.facilities.reduce((sum, row) => sum + (parseFloat(row.cost) || 0), 0);
+
+  // Deductions = Facilities/Expenses + Extra Deduction
+  const deductions = facilitiesTotal + extraDeductionsTotal;
+  // Gross = basic salary + HRA + Allowances + Bonus + Earnings
+  const gross = Number(form.basicSalary) + Number(form.hra) + Number(form.allowances) + Number(form.bonus) + earningsTotal;
+  // Net = Gross - Deductions
+  const net = gross - deductions;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -114,22 +144,17 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
       const year = date.getFullYear();
       await payrollAPI.createSlip({
         employee: employee._id,
-        employeeName: employee.name,
+        employeeName: form.employeeName,
         employeeEmail: employee.email,
         employeeId: form.employeeId,
-        designation: employee.designation || '',
         department: form.department,
+        designation: form.designation,
         workLocation: form.workLocation,
         month,
-        monthName: form.monthName,
         year,
-        companyName: form.companyName,
-        companyAddress: form.companyAddress,
-        companyEmail: form.companyEmail,
-        companyWebsite: form.companyWebsite,
         earnings: form.earnings,
+        extraDeductions: form.extraDeductions,
         facilities: form.facilities,
-        totalValue: form.totalValue,
         paymentDetails: form.paymentDetails,
         authorizedBy: form.authorizedBy,
         notes1: form.notes1,
@@ -137,7 +162,7 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
         basicSalary: Number(form.basicSalary),
         hra: Number(form.hra),
         allowances: Number(form.allowances),
-        deductions: Number(form.deductions),
+        deductions: deductions,
         tax: 0,
         netSalary: net,
         bonus: Number(form.bonus),
@@ -155,39 +180,29 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 max-h-[80vh] overflow-y-auto p-2">
-      {/* Employee & Company Info */}
+    <>
+      <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 max-h-[80vh] overflow-y-auto p-2">
+
+      {/* Employee Info (read-only) */}
       <div className="col-span-1">
         <label className="block text-sm font-medium mb-1">Employee ID</label>
-        <input name="employeeId" value={form.employeeId} onChange={handleChange} className="input w-full" />
+        <input name="employeeId" value={form.employeeId} className="input w-full bg-gray-100" readOnly />
+      </div>
+      <div className="col-span-1">
+        <label className="block text-sm font-medium mb-1">Employee Name</label>
+        <input name="employeeName" value={form.employeeName} className="input w-full bg-gray-100" readOnly />
       </div>
       <div className="col-span-1">
         <label className="block text-sm font-medium mb-1">Department</label>
-        <input name="department" value={form.department} onChange={handleChange} className="input w-full" />
+        <input name="department" value={form.department} className="input w-full bg-gray-100" readOnly />
+      </div>
+      <div className="col-span-1">
+        <label className="block text-sm font-medium mb-1">Designation</label>
+        <input name="designation" value={form.designation} className="input w-full bg-gray-100" readOnly />
       </div>
       <div className="col-span-1">
         <label className="block text-sm font-medium mb-1">Work Location</label>
-        <input name="workLocation" value={form.workLocation} onChange={handleChange} className="input w-full" />
-      </div>
-      <div className="col-span-1">
-        <label className="block text-sm font-medium mb-1">Month Name</label>
-        <input name="monthName" value={form.monthName} onChange={handleChange} className="input w-full" />
-      </div>
-      <div className="col-span-1">
-        <label className="block text-sm font-medium mb-1">Company Name</label>
-        <input name="companyName" value={form.companyName} onChange={handleChange} className="input w-full" />
-      </div>
-      <div className="col-span-1">
-        <label className="block text-sm font-medium mb-1">Company Address</label>
-        <input name="companyAddress" value={form.companyAddress} onChange={handleChange} className="input w-full" />
-      </div>
-      <div className="col-span-1">
-        <label className="block text-sm font-medium mb-1">Company Email</label>
-        <input name="companyEmail" value={form.companyEmail} onChange={handleChange} className="input w-full" />
-      </div>
-      <div className="col-span-1">
-        <label className="block text-sm font-medium mb-1">Company Website</label>
-        <input name="companyWebsite" value={form.companyWebsite} onChange={handleChange} className="input w-full" />
+        <input name="workLocation" value={form.workLocation} className="input w-full bg-gray-100" readOnly />
       </div>
 
       {/* Reason & Effective From */}
@@ -205,6 +220,7 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
         </select>
       </div>
 
+
       {/* Dynamic Earnings Table */}
       <div className="col-span-2 border-t pt-2 mt-2">
         <div className="font-bold mb-1">Earnings</div>
@@ -217,6 +233,20 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
           </div>
         ))}
         <button type="button" onClick={() => handleAddRow('earnings', { component: '', amount: '', remarks: '' })} className="btn-secondary mt-1">Add Earning</button>
+      </div>
+
+      {/* Dynamic Extra Deduction Table */}
+      <div className="col-span-2 border-t pt-2 mt-2">
+        <div className="font-bold mb-1">Extra Deduction</div>
+        {form.extraDeductions.map((row, idx) => (
+          <div key={idx} className="grid grid-cols-3 gap-2 mb-1">
+            <input placeholder="Component" value={row.component} onChange={e => handleArrayChange('extraDeductions', idx, 'component', e.target.value)} className="input" />
+            <input placeholder="Amount" value={row.amount} onChange={e => handleArrayChange('extraDeductions', idx, 'amount', e.target.value)} className="input" />
+            <input placeholder="Remarks" value={row.remarks} onChange={e => handleArrayChange('extraDeductions', idx, 'remarks', e.target.value)} className="input" />
+            <button type="button" onClick={() => handleRemoveRow('extraDeductions', idx)} className="text-red-500">Remove</button>
+          </div>
+        ))}
+        <button type="button" onClick={() => handleAddRow('extraDeductions', { component: '', amount: '', remarks: '' })} className="btn-secondary mt-1">Add Extra Deduction</button>
       </div>
 
       {/* Dynamic Facilities Table */}
@@ -233,19 +263,6 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
         <button type="button" onClick={() => handleAddRow('facilities', { head: '', cost: '', remarks: '' })} className="btn-secondary mt-1">Add Facility/Expense</button>
       </div>
 
-      {/* Dynamic Total Value Table */}
-      <div className="col-span-2 border-t pt-2 mt-2">
-        <div className="font-bold mb-1">Total Value to Employee</div>
-        {form.totalValue.map((row, idx) => (
-          <div key={idx} className="grid grid-cols-3 gap-2 mb-1">
-            <input placeholder="Component" value={row.component} onChange={e => handleArrayChange('totalValue', idx, 'component', e.target.value)} className="input" />
-            <input placeholder="Amount" value={row.amount} onChange={e => handleArrayChange('totalValue', idx, 'amount', e.target.value)} className="input" />
-            <input placeholder="Remarks" value={row.remarks} onChange={e => handleArrayChange('totalValue', idx, 'remarks', e.target.value)} className="input" />
-            <button type="button" onClick={() => handleRemoveRow('totalValue', idx)} className="text-red-500">Remove</button>
-          </div>
-        ))}
-        <button type="button" onClick={() => handleAddRow('totalValue', { component: '', amount: '', remarks: '' })} className="btn-secondary mt-1">Add Total Value Row</button>
-      </div>
 
       {/* Payment Details, Authorized By, Notes */}
       <div className="col-span-2 border-t pt-2 mt-2">
@@ -254,15 +271,11 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
       </div>
       <div className="col-span-2">
         <label className="block text-sm font-medium mb-1">Authorized By</label>
-        <textarea name="authorizedBy" value={form.authorizedBy} onChange={handleChange} className="input w-full" />
+        <input name="authorizedBy" value={form.authorizedBy} className="input w-full bg-gray-100" readOnly />
       </div>
       <div className="col-span-2">
         <label className="block text-sm font-medium mb-1">Notes 1</label>
         <textarea name="notes1" value={form.notes1} onChange={handleChange} className="input w-full" />
-      </div>
-      <div className="col-span-2">
-        <label className="block text-sm font-medium mb-1">Notes 2</label>
-        <textarea name="notes2" value={form.notes2} onChange={handleChange} className="input w-full" />
       </div>
 
       {/* Legacy fields for compatibility */}
@@ -283,8 +296,8 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
         <input name="bonus" value={form.bonus} onChange={handleChange} className="input w-full" type="number" min="0" />
       </div>
       <div className="col-span-2">
-        <label className="block text-sm font-medium mb-1">Deductions</label>
-        <input name="deductions" value={form.deductions} onChange={handleChange} className="input w-full" type="number" min="0" />
+        <label className="block text-sm font-medium mb-1">Deductions (Facilities/Expenses + Extra Deduction)</label>
+        <input name="deductions" value={deductions} className="input w-full bg-gray-100" type="number" min="0" readOnly />
       </div>
       <div className="col-span-2 text-sm text-gray-600">
         <div>Gross: <span className="font-bold">{gross.toFixed(2)}</span></div>
@@ -299,5 +312,6 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
         <button type="submit" className="btn-primary" disabled={loading}>{loading ? "Saving..." : "Save Salary"}</button>
       </div>
     </form>
+    </>
   );
 }

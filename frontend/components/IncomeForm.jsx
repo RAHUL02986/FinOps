@@ -92,7 +92,7 @@ export default function IncomeForm({ income, onClose, users = null, defaultUserI
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($) *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹) *</label>
             <input
               name="amount"
               type="number"

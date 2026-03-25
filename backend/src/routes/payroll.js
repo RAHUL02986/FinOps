@@ -50,15 +50,20 @@ router.post('/runs', async (req, res) => {
     // Generate salary slips for each employee, but only if they have a previous slip
     const slips = [];
     for (const emp of employees) {
-      // Find latest slip for this employee
+      // Check if a slip for this employee and this period already exists
+      const existingSlip = await SalarySlip.findOne({ employee: emp._id, month, year });
+      if (existingSlip) {
+        // If a slip for this period already exists (e.g. created manually), use it
+        slips.push(existingSlip._id);
+        continue;
+      }
+      // Find latest slip for this employee (before this period)
       const latestSlip = await SalarySlip.findOne({ employee: emp._id })
         .sort({ year: -1, month: -1 });
-
       if (!latestSlip) {
         // Skip employee if no previous salary slip exists
         continue;
       }
-
       // Copy all fields from the latest slip except _id, month, year, payrollRun, createdAt, updatedAt
       const slipData = latestSlip.toObject();
       delete slipData._id;
@@ -73,7 +78,10 @@ router.post('/runs', async (req, res) => {
       slipData.employee = emp._id;
       slipData.employeeName = emp.name;
       slipData.employeeEmail = emp.email;
-
+      // Always set latest designation from user profile
+      slipData.designation = emp.designation || '';
+      // Always set latest work location from .env
+      slipData.workLocation = process.env.WORK_LOCATION || '';
       const slip = await SalarySlip.create(slipData);
       slips.push(slip._id);
     }
@@ -134,7 +142,7 @@ router.post('/slips', async (req, res) => {
       employee, employeeName, employeeEmail, employeeId, designation, department, workLocation,
       month, monthName, year,
       companyName, companyAddress, companyEmail, companyWebsite,
-      earnings, facilities, totalValue,
+      earnings, extraDeductions, facilities, totalValue,
       paymentDetails, authorizedBy, notes1, notes2,
       // legacy fields for compatibility
       basicSalary, hra, allowances, deductions, tax, netSalary, bonus,
@@ -159,6 +167,7 @@ router.post('/slips', async (req, res) => {
       companyEmail,
       companyWebsite,
       earnings,
+      extraDeductions,
       facilities,
       totalValue,
       paymentDetails,
@@ -174,6 +183,10 @@ router.post('/slips', async (req, res) => {
       netSalary,
       bonus,
       status: status || 'completed',
+    });
+    // Only update employee's facilities in User profile (not earnings or extraDeductions)
+    await User.findByIdAndUpdate(employee, {
+      facilities
     });
     res.status(201).json(slip);
   } catch (err) {
@@ -207,7 +220,7 @@ router.put('/slips/:id', async (req, res) => {
       'employee', 'employeeName', 'employeeEmail', 'employeeId', 'designation', 'department', 'workLocation',
       'month', 'monthName', 'year',
       'companyName', 'companyAddress', 'companyEmail', 'companyWebsite',
-      'earnings', 'facilities', 'totalValue',
+      'earnings', 'extraDeductions', 'facilities', 'totalValue',
       'paymentDetails', 'authorizedBy', 'notes1', 'notes2',
       'basicSalary', 'hra', 'allowances', 'deductions', 'tax', 'netSalary', 'bonus', 'status'
     ];

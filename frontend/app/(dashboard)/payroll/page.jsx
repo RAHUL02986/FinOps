@@ -88,7 +88,7 @@ export default function PayrollPage() {
                       <tr>
                         <th className="px-4 py-2 text-left font-medium text-gray-600">Employee</th>
                         <th className="px-4 py-2 text-right font-medium text-gray-600">Basic</th>
-                        <th className="px-4 py-2 text-right font-medium text-gray-600">HRA</th>
+                        <th className="px-4 py-2 text-right font-medium text-gray-600">Earnings</th>
                         <th className="px-4 py-2 text-right font-medium text-gray-600">Deductions</th>
                         <th className="px-4 py-2 text-right font-medium text-gray-600">Net Salary</th>
                         <th className="px-4 py-2 text-center font-medium text-gray-600">Status</th>
@@ -99,27 +99,42 @@ export default function PayrollPage() {
                         <tr key={slip._id} className="border-t hover:bg-gray-50">
                           <td className="px-4 py-3"><p className="font-medium">{slip.employeeName}</p><p className="text-xs text-gray-400">{slip.employeeEmail}</p></td>
                           <td className="px-4 py-3 text-right">₹{slip.basicSalary?.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right">₹{slip.hra?.toLocaleString()}</td>
+                          {/* Earnings = sum of all earnings amounts */}
+                          <td className="px-4 py-3 text-right">₹{
+                            ((Array.isArray(slip.earnings) && slip.earnings.length > 0)
+                              ? slip.earnings.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0)
+                              : 0
+                            ).toLocaleString()
+                          }</td>
+                          {/* Deductions = Facilities/Expenses + Extra Deduction */}
                           <td className="px-4 py-3 text-right text-red-500">
                             -₹{
-                              ((Array.isArray(slip.facilities) && slip.facilities.length > 0)
-                                ? slip.facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0)
-                                : 0
-                              )
-                              .toLocaleString()
+                              (
+                                ((Array.isArray(slip.facilities) && slip.facilities.length > 0)
+                                  ? slip.facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0)
+                                  : 0)
+                                + ((Array.isArray(slip.extraDeductions) && slip.extraDeductions.length > 0)
+                                  ? slip.extraDeductions.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0)
+                                  : 0)
+                              ).toLocaleString()
                             }
                           </td>
+                          {/* Net Salary = Basic + Earnings - Deductions */}
                           <td className="px-4 py-3 text-right font-bold">
                             ₹{
                               (
                                 (slip.basicSalary || 0)
-                                + (slip.hra || 0)
-                                + (slip.allowances || 0)
-                                + (slip.bonus || 0)
-                                - ((Array.isArray(slip.facilities) && slip.facilities.length > 0)
-                                    ? slip.facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0)
+                                + ((Array.isArray(slip.earnings) && slip.earnings.length > 0)
+                                    ? slip.earnings.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0)
                                     : 0)
-                                - (slip.tax || 0)
+                                - (
+                                    ((Array.isArray(slip.facilities) && slip.facilities.length > 0)
+                                      ? slip.facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0)
+                                      : 0)
+                                    + ((Array.isArray(slip.extraDeductions) && slip.extraDeductions.length > 0)
+                                      ? slip.extraDeductions.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0)
+                                      : 0)
+                                  )
                               ).toLocaleString()
                             }
                           </td>

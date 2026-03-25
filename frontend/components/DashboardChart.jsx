@@ -11,7 +11,7 @@ const PIE_COLORS = [
 ];
 
 const formatUSD = (v) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v);
 
 function BarChartComponent({ data }) {
   if (!data?.length) {
@@ -23,6 +23,7 @@ function BarChartComponent({ data }) {
         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
         <XAxis dataKey="month" tick={{ fontSize: 12 }} />
         <YAxis tickFormatter={(v) => `$${v}`} tick={{ fontSize: 12 }} width={60} />
+        <YAxis tickFormatter={(v) => `₹${v}`} tick={{ fontSize: 12 }} width={60} />
         <Tooltip formatter={(value) => formatUSD(value)} />
         <Legend />
         <Bar dataKey="income" name="Income" fill="#10b981" radius={[4, 4, 0, 0]} />

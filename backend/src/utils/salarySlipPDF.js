@@ -70,15 +70,21 @@ async function generateSalarySlipPDF(slip, outputPath) {
       if (slip.allowances && slip.allowances > 0) earningsRows.push({ component: 'DA', amount: slip.allowances, remarks: '' });
     }
 
-    // Always calculate deductions from facilities/expenses
-    let deductionsValue = 0;
+    // Calculate deductions from facilities/expenses and extraDeductions
+    let facilitiesDeductions = 0;
     if (slip.facilities && slip.facilities.length > 0) {
-      deductionsValue = slip.facilities.reduce((sum, f) => {
+      facilitiesDeductions = slip.facilities.reduce((sum, f) => {
         const cost = parseFloat(f.cost) || 0;
         return sum + cost;
       }, 0);
     }
-    if (deductionsValue > 0) earningsRows.push({ component: 'Deductions', amount: `-${deductionsValue}`, remarks: '' });
+    let extraDeductionsValue = 0;
+    if (slip.extraDeductions && slip.extraDeductions.length > 0) {
+      extraDeductionsValue = slip.extraDeductions.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
+    }
+    const totalDeductions = facilitiesDeductions + extraDeductionsValue;
+    if (facilitiesDeductions > 0) earningsRows.push({ component: 'Facilities/Expenses Deduction', amount: `-${facilitiesDeductions}`, remarks: '' });
+    if (extraDeductionsValue > 0) earningsRows.push({ component: 'Extra Deduction', amount: `-${extraDeductionsValue}`, remarks: '' });
     if (slip.tax && slip.tax > 0) earningsRows.push({ component: 'Tax', amount: `-${slip.tax}`, remarks: '' });
     if (slip.bonus && slip.bonus > 0) earningsRows.push({ component: 'Bonus', amount: slip.bonus, remarks: '' });
     if (earningsRows.length === 0) earningsRows = [{ component: '', amount: '', remarks: '' }];
@@ -90,14 +96,11 @@ async function generateSalarySlipPDF(slip, outputPath) {
     });
     // Dynamically calculate Net Salary
     const basic = slip.basicSalary || 0;
-    const hra = slip.hra || 0;
-    const allowances = slip.allowances || 0;
-    const bonus = slip.bonus || 0;
-    const tax = slip.tax || 0;
-    const deductions = (slip.facilities && slip.facilities.length > 0)
-      ? slip.facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0)
+    const earningsTotal = (slip.earnings && slip.earnings.length > 0)
+      ? slip.earnings.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0)
       : 0;
-    const netSalary = basic + hra + allowances + bonus - deductions - tax;
+    const tax = slip.tax || 0;
+    const netSalary = basic + earningsTotal - totalDeductions - tax;
     y += 6;
     doc.font('Helvetica-Bold').fontSize(11).fillColor('#222').text('Net Salary', startX + 10, y, { width: 140 });
     doc.font('Helvetica-Bold').fontSize(11).fillColor('#222').text(netSalary.toLocaleString('en-IN'), startX + 160, y, { width: 100 });
@@ -110,7 +113,7 @@ async function generateSalarySlipPDF(slip, outputPath) {
     doc.font('Helvetica').fontSize(9).text('(Additional value provided by the company – not part of take-home pay)', startX + 10, y, { width: pageWidth - 20 });
     y += 16;
     doc.font('Helvetica-Bold').fontSize(10).text('Facility / Expense Head', startX + 10, y, { width: 160 });
-    doc.text('Approx. Monthly Cost (INR)', startX + 180, y, { width: 120 });
+    doc.text('Approx. Monthly Cost ', startX + 180, y, { width: 120 });
     doc.text('Remarks', startX + 320, y, { width: pageWidth - 330 });
     y += 16;
     doc.font('Helvetica').fontSize(10);
@@ -123,22 +126,7 @@ async function generateSalarySlipPDF(slip, outputPath) {
     });
     y += 10;
 
-    // Total Value to Employee Table
-    doc.font('Helvetica-Bold').fontSize(11).text('Total Value to Employee', startX + 10, y, { width: pageWidth - 20 });
-    y += 18;
-    doc.font('Helvetica-Bold').fontSize(10).text('Component', startX + 10, y, { width: 140 });
-    doc.text('Amount (INR)', startX + 160, y, { width: 100 });
-    doc.text('Remarks', startX + 270, y, { width: pageWidth - 280 });
-    y += 16;
-    doc.font('Helvetica').fontSize(10);
-    const totalValueRows = (slip.totalValue && slip.totalValue.length > 0) ? slip.totalValue : [{ component: '', amount: '', remarks: '' }];
-    totalValueRows.forEach(row => {
-      doc.text(row.component || '', startX + 10, y, { width: 140 });
-      doc.text(row.amount || '', startX + 160, y, { width: 100 });
-      doc.text(row.remarks || '', startX + 270, y, { width: pageWidth - 280 });
-      y += 16;
-    });
-    y += 10;
+    // Removed 'Total Value to Employee' section as requested
 
     // Payment Details and Authorization
     doc.font('Helvetica-Bold').fontSize(10).text('Payment Details:', startX + 10, y, { width: 200 });

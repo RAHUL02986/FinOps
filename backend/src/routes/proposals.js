@@ -111,6 +111,7 @@ router.post('/', authorize('superadmin', 'manager'), async (req, res) => {
   try {
     const proposalData = {
       ...req.body,
+      currency: 'USD', // Always use USD for proposals
       createdBy: req.user._id,
       company: req.body.company || {
         name: process.env.COMPANY_NAME || '',
@@ -135,7 +136,7 @@ router.put('/:id', authorize('superadmin', 'manager'), async (req, res) => {
     const proposal = await Proposal.findById(req.params.id);
     if (!proposal) return res.status(404).json({ message: 'Proposal not found' });
 
-    Object.assign(proposal, req.body);
+    Object.assign(proposal, { ...req.body, currency: 'USD' }); // Always use USD
     await proposal.save();
     const populated = await Proposal.findById(proposal._id).populate('createdBy', 'name email').populate('template');
     res.json(populated);

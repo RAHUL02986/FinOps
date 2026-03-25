@@ -5,7 +5,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 
 const formatCurrency = (n) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(n);
 
 const formatDate = (d) =>
   new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });

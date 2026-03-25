@@ -1,8 +1,64 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const UserSchema = new mongoose.Schema(
-  {
+const UserSchema = new mongoose.Schema({
+        earnings: {
+          type: [
+            {
+              component: { type: String, default: '' },
+              amount: { type: String, default: '' },
+              remarks: { type: String, default: '' }
+            }
+          ],
+          default: []
+        },
+        totalHoursWorked: {
+          type: Number,
+          default: 0
+        },
+        extraLeaveDeduction: {
+          type: Number,
+          default: 0
+        },
+    facilities: {
+      type: [
+        {
+          head: { type: String, default: '' },
+          cost: { type: String, default: '' },
+          remarks: { type: String, default: '' }
+        }
+      ],
+      default: []
+    },
+    employeeId: {
+      type: String,
+      trim: true,
+      unique: true,
+      sparse: true,
+      required: function() { return this.role === 'employee'; },
+    },
+    fatherName: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    motherName: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    alternateMobile: {
+      type: String,
+      trim: true,
+      maxlength: [20, 'Alternate mobile number cannot exceed 20 characters'],
+      default: '',
+    },
+    aadhaar: {
+      type: String,
+      trim: true,
+      maxlength: [16, 'Aadhaar number cannot exceed 16 digits'],
+      default: '',
+    },
     name: {
       type: String,
       required: [true, 'Name is required'],
@@ -51,6 +107,11 @@ const UserSchema = new mongoose.Schema(
     isVerified: {
       type: Boolean,
       default: false,
+    },
+    department: {
+      type: String,
+      trim: true,
+      default: '',
     },
     // Removed duplicate fields
   },

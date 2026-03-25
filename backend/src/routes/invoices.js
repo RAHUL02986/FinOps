@@ -318,7 +318,7 @@ router.post('/', requireElevated, invoiceValidation, async (req, res) => {
       items: computedItems,
       taxRate: parseFloat(taxRate) || 0,
       discount: parseFloat(discount) || 0,
-      currency: currency || 'USD',
+      currency: 'USD',
       issueDate: issueDate ? new Date(issueDate) : new Date(),
       dueDate: dueDate ? new Date(dueDate) : null,
       notes: notes || '',

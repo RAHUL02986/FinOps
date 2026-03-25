@@ -9,7 +9,10 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
     email: employee?.email || "",
     phone: employee?.phone || "",
     designation: employee?.designation || "",
-    team: employee?.team || "",
+    fatherName: employee?.fatherName || "",
+    alternateMobile: employee?.alternateMobile || "",
+    aadhaar: employee?.aadhaar || "",
+    department: employee?.department || "",
     joiningDate: employee?.joiningDate ? new Date(employee.joiningDate).toISOString().slice(0, 10) : "",
     status: employee?.isActive === false ? "Terminated" : "Active",
   });
@@ -35,7 +38,10 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
         email: form.email,
         phone: form.phone,
         designation: form.designation,
-        team: form.team,
+        fatherName: form.fatherName,
+        alternateMobile: form.alternateMobile,
+        aadhaar: form.aadhaar,
+        department: form.department,
         joiningDate: form.joiningDate,
         isActive: form.status === "Active",
       };
@@ -73,6 +79,13 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
         required
       />
       <input
+        name="fatherName"
+        value={form.fatherName}
+        onChange={handleChange}
+        placeholder="Father's Name"
+        className="input col-span-1"
+      />
+      <input
         name="email"
         value={form.email}
         onChange={handleChange}
@@ -86,9 +99,36 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
         value={form.phone}
         onChange={handleChange}
         placeholder="Phone"
-        className="input col-span-2"
+        className="input col-span-1"
         type="tel"
       />
+      <input
+        name="alternateMobile"
+        value={form.alternateMobile}
+        onChange={handleChange}
+        placeholder="Alternate Mobile Number"
+        className="input col-span-1"
+        type="tel"
+      />
+      <input
+        name="aadhaar"
+        value={form.aadhaar}
+        onChange={handleChange}
+        placeholder="Aadhaar Card Number"
+        className="input col-span-2"
+      />
+      
+      <select
+        name="department"
+        value={form.department}
+        onChange={handleChange}
+        className="input col-span-2"
+      >
+        <option value="">Select team</option>
+        {teams.map((t) => (
+          <option key={t._id} value={t.name}>{t.name}</option>
+        ))}
+      </select>
       <input
         name="designation"
         value={form.designation}
@@ -96,17 +136,6 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
         placeholder="Designation"
         className="input col-span-2"
       />
-      <select
-        name="team"
-        value={form.team}
-        onChange={handleChange}
-        className="input col-span-2"
-      >
-        <option value="">Select team</option>
-        {teams.map((t) => (
-          <option key={t._id} value={t._id}>{t.name}</option>
-        ))}
-      </select>
       <input
         name="joiningDate"
         value={form.joiningDate}

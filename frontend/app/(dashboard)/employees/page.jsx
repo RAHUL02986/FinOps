@@ -68,7 +68,7 @@ export default function EmployeesPage() {
   };
 
   return (
-    <div className="p-0 md:p-6 max-w-6xl mx-auto">
+    <div className="p-0 md:p-6 max-w-9xl mx-auto">
       <h1 className="text-2xl font-bold mb-2">Employee Management</h1>
       <p className="text-gray-500 mb-6">Manage teams, employees, and salary records.</p>
       <div className="flex gap-2 mb-6">
@@ -108,6 +108,10 @@ export default function EmployeesPage() {
                   <tr>
                     <th className="px-4 py-2 text-left font-medium text-gray-600">Name</th>
                     <th className="px-4 py-2 text-left font-medium text-gray-600">Emp ID</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600">Father's Name</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600">Mother's Name</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600">Alt. Mobile</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600">Aadhaar</th>
                     <th className="px-4 py-2 text-left font-medium text-gray-600">Designation</th>
                     <th className="px-4 py-2 text-left font-medium text-gray-600">Email</th>
                     <th className="px-4 py-2 text-left font-medium text-gray-600">Phone</th>
@@ -118,14 +122,18 @@ export default function EmployeesPage() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={8} className="text-center py-8">Loading...</td></tr>
+                    <tr><td colSpan={12} className="text-center py-8">Loading...</td></tr>
                   ) : employees.length === 0 ? (
-                    <tr><td colSpan={8} className="text-center py-8 text-gray-400">No employees found</td></tr>
+                    <tr><td colSpan={12} className="text-center py-8 text-gray-400">No employees found</td></tr>
                   ) : (
                     employees.map((emp) => (
                       <tr key={emp._id} className="border-t hover:bg-gray-50">
                         <td className="px-4 py-3 font-medium">{emp.name}</td>
                         <td className="px-4 py-3">{emp.employeeId || emp._id}</td>
+                        <td className="px-4 py-3">{emp.fatherName || '-'}</td>
+                        <td className="px-4 py-3">{emp.motherName || '-'}</td>
+                        <td className="px-4 py-3">{emp.alternateMobile || '-'}</td>
+                        <td className="px-4 py-3">{emp.aadhaar || '-'}</td>
                         <td className="px-4 py-3">{emp.designation}</td>
                         <td className="px-4 py-3">{emp.email}</td>
                         <td className="px-4 py-3">{emp.phone || '-'}</td>
@@ -159,7 +167,6 @@ export default function EmployeesPage() {
                             }}
                           />
                         </td>
-
                       </tr>
                     ))
                   )}
