@@ -197,6 +197,8 @@ router.post('/slips', async (req, res) => {
     if (!employee || !employeeName || !employeeEmail || !month || !year) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
+    // Fetch fatherName and motherName from User collection
+    const userDoc = await User.findById(employee);
     const slip = await SalarySlip.create({
       employee,
       employeeName,
@@ -205,6 +207,8 @@ router.post('/slips', async (req, res) => {
       designation,
       department,
       workLocation,
+      fatherName: userDoc?.fatherName || '',
+      motherName: userDoc?.motherName || '',
       month,
       monthName,
       year,

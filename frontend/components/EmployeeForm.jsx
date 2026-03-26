@@ -10,6 +10,7 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
     phone: employee?.phone || "",
     designation: employee?.designation || "",
     fatherName: employee?.fatherName || "",
+    motherName: employee?.motherName || "",
     alternateMobile: employee?.alternateMobile || "",
     aadhaar: employee?.aadhaar || "",
     department: employee?.department || "",
@@ -39,6 +40,7 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
         phone: form.phone,
         designation: form.designation,
         fatherName: form.fatherName,
+        motherName: form.motherName,
         alternateMobile: form.alternateMobile,
         aadhaar: form.aadhaar,
         department: form.department,
@@ -83,6 +85,13 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
         value={form.fatherName}
         onChange={handleChange}
         placeholder="Father's Name"
+        className="input col-span-1"
+      />
+      <input
+        name="motherName"
+        value={form.motherName}
+        onChange={handleChange}
+        placeholder="Mother's Name"
         className="input col-span-1"
       />
       <input

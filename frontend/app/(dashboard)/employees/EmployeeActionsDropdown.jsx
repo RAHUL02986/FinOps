@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
-export default function EmployeeActionsDropdown({ employee, onEdit, onSalary, onHistory, onToggleActive }) {
+export default function EmployeeActionsDropdown({ employee, onEdit, onSalary, onHistory, onToggleActive, onSoftDelete }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
   useEffect(() => {
@@ -29,6 +29,12 @@ export default function EmployeeActionsDropdown({ employee, onEdit, onSalary, on
             onClick={() => { setOpen(false); onToggleActive(); }}
           >
             {employee.isActive !== false ? 'Terminate' : 'Reactivate'}
+          </button>
+          <button
+            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-orange-600"
+            onClick={() => { setOpen(false); onSoftDelete(); }}
+          >
+            Soft Delete
           </button>
         </div>
       )}

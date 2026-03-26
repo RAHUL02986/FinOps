@@ -42,6 +42,8 @@ async function generateSalarySlipPDF(slip, outputPath) {
     ['Employee Name', slip.employeeName || ''],
     ['Designation', slip.designation || ''],
     ['Employee ID', slip.employeeId || ''],
+    ["Father's Name", slip.fatherName || ''],
+    ["Mother's Name", slip.motherName || ''],
     ['Department', slip.department || ''],
     ['Month & Year', `${slip.monthName} ${slip.year}`],
     ['Work Location', slip.workLocation || ''],
@@ -130,11 +132,10 @@ async function generateSalarySlipPDF(slip, outputPath) {
     });
   }
 
-  // Net Salary
+
+  // Gross Salary, Total Expenses, Total Deductions, Net Salary
   y += 8;
-  doc.rect(startX, y, pageWidth, 18).stroke();
-  doc.font('Helvetica-Bold').fontSize(11).text('Net Salary', startX + 2, y + 4, { width: 140 });
-  // Calculate net salary
+  // Calculate values
   const basic = slip.basicSalary || 0;
   const hra = slip.hra || 0;
   const allowances = slip.allowances || 0;
@@ -142,16 +143,38 @@ async function generateSalarySlipPDF(slip, outputPath) {
   const earningsTotal = (slip.earnings && slip.earnings.length > 0)
     ? slip.earnings.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0)
     : 0;
-  let facilitiesDeductions = 0;
+  let facilitiesExpenses = 0;
   if (slip.facilities && slip.facilities.length > 0) {
-    facilitiesDeductions = slip.facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0);
+    facilitiesExpenses = slip.facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0);
   }
   let extraDeductionsValue = 0;
   if (slip.extraDeductions && slip.extraDeductions.length > 0) {
     extraDeductionsValue = slip.extraDeductions.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
   }
   const gross = Number(basic) + Number(hra) + Number(allowances) + Number(bonus) + earningsTotal;
-  const netSalary = gross - facilitiesDeductions - extraDeductionsValue;
+  const netSalary = gross - facilitiesExpenses - extraDeductionsValue;
+
+  // Gross Salary
+  doc.rect(startX, y, pageWidth, 18).stroke();
+  doc.font('Helvetica-Bold').fontSize(11).text('Gross Salary', startX + 2, y + 4, { width: 140 });
+  doc.font('Helvetica-Bold').fontSize(11).text(gross.toLocaleString('en-IN'), startX + 142, y + 4, { width: 80 });
+  y += 18;
+
+  // Total Expenses (Facilities/Expenses)
+  doc.rect(startX, y, pageWidth, 18).stroke();
+  doc.font('Helvetica-Bold').fontSize(11).text('Total Expenses', startX + 2, y + 4, { width: 140 });
+  doc.font('Helvetica-Bold').fontSize(11).text(facilitiesExpenses.toLocaleString('en-IN'), startX + 142, y + 4, { width: 80 });
+  y += 18;
+
+  // Total Deductions (Extra Deductions)
+  doc.rect(startX, y, pageWidth, 18).stroke();
+  doc.font('Helvetica-Bold').fontSize(11).text('Total Deductions', startX + 2, y + 4, { width: 140 });
+  doc.font('Helvetica-Bold').fontSize(11).text(extraDeductionsValue.toLocaleString('en-IN'), startX + 142, y + 4, { width: 80 });
+  y += 18;
+
+  // Net Salary
+  doc.rect(startX, y, pageWidth, 18).stroke();
+  doc.font('Helvetica-Bold').fontSize(11).text('Net Salary', startX + 2, y + 4, { width: 140 });
   doc.font('Helvetica-Bold').fontSize(11).text(netSalary.toLocaleString('en-IN'), startX + 142, y + 4, { width: 80 });
   y += 24;
 

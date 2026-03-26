@@ -32,7 +32,8 @@ export default function EmployeesPage() {
     try {
       if (tab === "employees") {
         const res = await usersAPI.getAll({ limit: 100 });
-        setEmployees(res.data.data || []);
+        // Filter out soft-deleted employees
+        setEmployees((res.data.data || []).filter(e => !e.isDeleted));
       } else {
         const res = await teamsAPI.getAll();
         setTeams(res.data.data || []);
@@ -163,6 +164,16 @@ export default function EmployeesPage() {
                                 load();
                               } catch (err) {
                                 toast.error(err.response?.data?.message || 'Failed to update status');
+                              }
+                            }}
+                            onSoftDelete={async () => {
+                              if (!window.confirm(`delete ${emp.name}? This will hide their account but not remove it permanently.`)) return;
+                              try {
+                                await usersAPI.update(emp._id, { isDeleted: true });
+                                toast.success('Employee soft deleted');
+                                load();
+                              } catch (err) {
+                                toast.error(err.response?.data?.message || 'Failed to soft delete');
                               }
                             }}
                           />

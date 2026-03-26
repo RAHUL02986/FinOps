@@ -8,6 +8,8 @@ const salarySlipSchema = new mongoose.Schema({
   designation: { type: String, default: '' },
   department: { type: String, default: '' },
   workLocation: { type: String, default: '' },
+  fatherName: { type: String, default: '' },
+  motherName: { type: String, default: '' },
   month: { type: Number, required: true, min: 1, max: 12 },
   monthName: { type: String, default: '' },
   year: { type: Number, required: true },

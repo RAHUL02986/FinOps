@@ -16,6 +16,8 @@ export default function UserForm({ user, onClose }) {
     joiningDate: user?.joiningDate ? user.joiningDate.substring(0, 10) : '',
     experienceYears: user?.experienceYears ?? '',
     isActive: user?.isActive ?? true,
+    fatherName: user?.fatherName ?? '',
+    motherName: user?.motherName ?? '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -44,8 +46,34 @@ export default function UserForm({ user, onClose }) {
         employmentType: form.employmentType,
         joiningDate: form.joiningDate || undefined,
         experienceYears: form.experienceYears ? Number(form.experienceYears) : 0,
-        isActive: form.isActive 
+        isActive: form.isActive,
+        fatherName: form.fatherName,
+        motherName: form.motherName
       };
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Father's Name</label>
+                    <input
+                      name="fatherName"
+                      type="text"
+                      value={form.fatherName}
+                      onChange={handleChange}
+                      className="input"
+                      placeholder="Father's Name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Mother's Name</label>
+                    <input
+                      name="motherName"
+                      type="text"
+                      value={form.motherName}
+                      onChange={handleChange}
+                      className="input"
+                      placeholder="Mother's Name"
+                    />
+                  </div>
+                </>
       if (form.password) payload.password = form.password;
 
       if (user) {

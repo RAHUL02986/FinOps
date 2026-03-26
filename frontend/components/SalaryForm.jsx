@@ -12,6 +12,8 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
     department: '',
     designation: '', // fetched, not editable
     workLocation: '', // fetched, not editable
+    fatherName: '',
+    motherName: '',
     earnings: [ { component: '', amount: '', remarks: '' } ],
     extraDeductions: [ { component: '', amount: '', remarks: '' } ],
     facilities: [ { head: '', cost: '', remarks: '' } ],
@@ -59,6 +61,8 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
               department: empData.department || '',
               designation: empData.designation || '',
               workLocation: company.workLocation || '',
+              fatherName: empData.fatherName || '',
+              motherName: empData.motherName || '',
               facilities: Array.isArray(empData.facilities) && empData.facilities.length > 0 ? empData.facilities : [{ head: '', cost: '', remarks: '' }],
               earnings: Array.isArray(empData.earnings) && empData.earnings.length > 0 ? empData.earnings : [{ component: '', amount: '', remarks: '' }],
               extraDeductions: Array.isArray(empData.extraDeductions) && empData.extraDeductions.length > 0 ? empData.extraDeductions : [{ component: '', amount: '', remarks: '' }],
@@ -150,6 +154,8 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
         department: form.department,
         designation: form.designation,
         workLocation: form.workLocation,
+        fatherName: form.fatherName,
+        motherName: form.motherName,
         month,
         year,
         earnings: form.earnings,

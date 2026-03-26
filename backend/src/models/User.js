@@ -104,6 +104,10 @@ const UserSchema = new mongoose.Schema({
       type: Boolean,
       default: true,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
     isVerified: {
       type: Boolean,
       default: false,
