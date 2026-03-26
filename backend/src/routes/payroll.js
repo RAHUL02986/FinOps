@@ -220,6 +220,7 @@ router.post('/slips', async (req, res) => {
       authorizedBy,
       notes1,
       notes2,
+      reason: req.body.reason || '',
       basicSalary: Number(basicSalary),
       hra: Number(hra),
       allowances: Number(allowances),
@@ -275,6 +276,7 @@ router.put('/slips/:id', async (req, res) => {
       'companyName', 'companyAddress', 'companyEmail', 'companyWebsite',
       'earnings', 'extraDeductions', 'facilities', 'totalValue',
       'paymentDetails', 'authorizedBy', 'notes1', 'notes2',
+      'reason',
       'basicSalary', 'hra', 'allowances', 'tax', 'bonus', 'status'
     ];
     fields.forEach(f => {

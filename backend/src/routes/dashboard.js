@@ -9,6 +9,14 @@ router.use(protect);
 const getPeriodStart = (period) => {
   const now = new Date();
   switch (period) {
+    case 'day':
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    case 'week':
+      // Last 7 days including today
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+    case '15days':
+      // Last 15 days including today
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14);
     case 'month':
       return new Date(now.getFullYear(), now.getMonth(), 1);
     case 'quarter':

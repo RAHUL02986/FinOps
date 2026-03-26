@@ -48,9 +48,13 @@ const salarySlipSchema = new mongoose.Schema({
     }
   ],
 
+
   // Payment and authorization
   paymentDetails: { type: String, default: '' },
   authorizedBy: { type: String, default: '' },
+
+  // Reason for salary change (Joining, Increment, Promotion, Other)
+  reason: { type: String, default: '' },
 
   // Notes
   notes1: { type: String, default: '' },

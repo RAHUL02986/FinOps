@@ -9,6 +9,9 @@ import TransactionTable from '../../../components/TransactionTable';
 import toast from 'react-hot-toast';
 
 const PERIODS = [
+  { value: 'day', label: 'Today' },
+  { value: 'week', label: 'Last 7 Days' },
+  { value: '15days', label: 'Last 15 Days' },
   { value: 'month', label: 'This Month' },
   { value: 'quarter', label: 'This Quarter' },
   { value: 'year', label: 'This Year' },
