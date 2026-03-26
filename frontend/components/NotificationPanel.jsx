@@ -44,7 +44,7 @@ export default function NotificationPanel() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border p-8 mt-8 max-w-xl mx-auto">
+    <div className="bg-white rounded-2xl shadow-lg border p-8 mt-8 max-w-5xl mx-auto">
       <div className="flex items-center gap-3 mb-2">
         <FaBell className="text-3xl text-indigo-600" />
         <h2 className="text-2xl font-bold text-gray-900">Notification Preferences</h2>
