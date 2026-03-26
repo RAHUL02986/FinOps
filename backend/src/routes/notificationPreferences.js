@@ -21,10 +21,10 @@ router.get('/', async (req, res) => {
 // PUT update current user's notification preferences
 router.put('/', async (req, res) => {
   try {
-    const { invoiceReminders, payrollNotifications, expenseAlerts } = req.body;
+    const { invoiceReminders, payrollNotifications, expenseAlerts, proposalNotifications } = req.body;
     let prefs = await NotificationPreference.findOneAndUpdate(
       { user: req.user._id },
-      { invoiceReminders, payrollNotifications, expenseAlerts },
+      { invoiceReminders, payrollNotifications, expenseAlerts, proposalNotifications },
       { new: true, upsert: true }
     );
     res.json(prefs);

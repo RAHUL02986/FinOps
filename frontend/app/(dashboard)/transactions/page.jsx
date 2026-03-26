@@ -6,7 +6,7 @@ import { FaArrowDown, FaArrowUp, FaExchangeAlt, FaCheckCircle, FaClock, FaTimesC
 import { useAuth } from "../../../context/AuthContext";
 import Link from "next/link";
 
-const STATUS_OPTIONS = ["All", "Approved", "Pending", "Rejected"];
+const STATUS_OPTIONS = ["All", "Approved", "Pending", "Rejected", "Draft"];
 
 function TransactionRow({ txn, user, onAction }) {
   const [open, setOpen] = useState(false);

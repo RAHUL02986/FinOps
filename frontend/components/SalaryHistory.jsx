@@ -27,28 +27,38 @@ export default function SalaryHistory({ employee, onClose }) {
         <div className="text-center py-8 text-gray-400">No salary history found</div>
       ) : (
         <div className="space-y-4 max-h-72 overflow-y-auto pr-2"> {/* max-h-72 ~ 18rem, shows ~3-4 items */}
-          {history.map((item, idx) => {
-            const reason = item.reason || '';
-            const isIncrement = /increment/i.test(reason);
-            const isPromotion = /promotion/i.test(reason);
-            let cardBg = 'bg-white';
-            if (isIncrement) cardBg = 'bg-green-50';
-            if (isPromotion) cardBg = 'bg-blue-50';
-            // Show designation if available
-            const designation = item.designation || item.title || item.role || '';
-            return (
-              <div key={item._id} className={`border rounded-lg p-4 flex items-center justify-between ${cardBg}`}>
-                <div>
-                  <div className="font-semibold">Effective: {item.effectiveFrom ? new Date(item.effectiveFrom).toLocaleDateString() : `${item.month}/${item.year}`}{item.effectiveTo ? ` to ${new Date(item.effectiveTo).toLocaleDateString()}` : ' onward'}</div>
-                  <div className="text-xs text-gray-500">Gross: {item.gross?.toFixed(2) || item.basicSalary?.toFixed(2)} | Net: {item.net?.toFixed(2) || item.netSalary?.toFixed(2)}</div>
-                  {designation && <div className="text-xs text-gray-600">Designation: {designation}</div>}
-                  <div className={`text-xs font-semibold ${isIncrement ? 'text-green-700' : isPromotion ? 'text-blue-700' : 'text-gray-400'}`}>Reason: {reason || 'N/A'}</div>
-                  <div className={`text-xs ${isIncrement ? 'text-green-700 font-semibold' : isPromotion ? 'text-blue-700 font-semibold' : 'text-gray-400'}`}>Created: {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}</div>
+          {(() => {
+            // Highlight only the first card in a consecutive block of increments or promotions
+            return history.map((item, idx) => {
+              const reason = item.reason || '';
+              const isIncrement = /increment/i.test(reason);
+              const isPromotion = /promotion/i.test(reason);
+              let cardBg = 'bg-white';
+              // Check previous card (next index, since latest is on top)
+              const prev = history[idx + 1];
+              const prevReason = prev ? (prev.reason || '') : '';
+              const prevIsIncrement = /increment/i.test(prevReason);
+              const prevIsPromotion = /promotion/i.test(prevReason);
+              // Highlight only if this is increment and previous is not increment
+              if (isIncrement && !prevIsIncrement) cardBg = 'bg-green-50';
+              // Highlight only if this is promotion and previous is not promotion
+              if (isPromotion && !prevIsPromotion) cardBg = 'bg-blue-50';
+              // Show designation if available
+              const designation = item.designation || item.title || item.role || '';
+              return (
+                <div key={item._id} className={`border rounded-lg p-4 flex items-center justify-between ${cardBg}`}>
+                  <div>
+                    <div className="font-semibold">Effective: {item.effectiveFrom ? new Date(item.effectiveFrom).toLocaleDateString() : `${item.month}/${item.year}`}{item.effectiveTo ? ` to ${new Date(item.effectiveTo).toLocaleDateString()}` : ' onward'}</div>
+                    <div className="text-xs text-gray-500">Gross: {item.gross?.toFixed(2) || item.basicSalary?.toFixed(2)} | Net: {item.net?.toFixed(2) || item.netSalary?.toFixed(2)}</div>
+                    {designation && <div className="text-xs text-gray-600">Designation: {designation}</div>}
+                    <div className={`text-xs font-semibold ${isIncrement ? 'text-green-700' : isPromotion ? 'text-blue-700' : 'text-gray-400'}`}>Reason: {reason || 'N/A'}</div>
+                    <div className={`text-xs ${isIncrement ? 'text-green-700 font-semibold' : isPromotion ? 'text-blue-700 font-semibold' : 'text-gray-400'}`}>Created: {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}</div>
+                  </div>
+                  <div className="text-xs text-gray-500">{item.status || ''}</div>
                 </div>
-                <div className="text-xs text-gray-500">{item.status || ''}</div>
-              </div>
-            );
-          })}
+              );
+            });
+          })()}
         </div>
       )}
       <div className="flex justify-end mt-6">

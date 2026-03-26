@@ -137,6 +137,8 @@ export const settingsAPI = {
   getSmtp: () => api.get('/settings/smtp'),
   updateSmtp: (type, data) => api.put(`/settings/smtp/${type}`, data),
   testSmtp: (type) => api.post(`/settings/smtp/test/${type}`),
+  getNotificationPrefs: () => api.get('/notification-preferences'),
+  updateNotificationPrefs: (data) => api.put('/notification-preferences', data),
 };
 
 // ── Recurring Expenses ────────────────────────────────────────────────────────

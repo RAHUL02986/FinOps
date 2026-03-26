@@ -53,14 +53,17 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
   const [showNotifsDropdown, setShowNotifsDropdown] = useState(false);
   const notifsRef = useRef(null);
 
+  // Only show bell icon for admin/superadmin
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+
 
 
 
   // Task notifications (all users)
 
-  // Fetch notifications, filter by preferences (handled by backend)
+  // Fetch notifications, respect preferences for all users
   const fetchNotifications = () => {
-    if (!user) return;
+    if (!user || !isAdmin) return;
     notificationsAPI.getAll()
       .then(res => {
         setNotifications(res.data || []);
@@ -104,46 +107,68 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
       
       <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
 
+
       <div className="flex items-center gap-3">
-        {/* Notification Bell */}
-        <div className="relative" ref={notifsRef}>
-          <button
-            className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-indigo-50 relative"
-            onClick={() => setShowNotifsDropdown((v) => !v)}
-            aria-label="Notifications"
-          >
-            <span className="text-xl">🔔</span>
-            {unreadCount > 0 && (
-              <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-bold" style={{ fontSize: 11 }}>{unreadCount}</span>
-            )}
-          </button>
-          {showNotifsDropdown && (
-            <div className="absolute right-0 mt-2 w-80 bg-white border rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
-              <div className="flex items-center justify-between px-4 py-2 border-b">
-                <span className="font-semibold text-gray-800">Notifications</span>
-                {unreadCount > 0 && (
-                  <button onClick={handleMarkAllRead} className="text-xs text-blue-600 hover:underline">Mark all read</button>
-                )}
+        {/* Notification Bell - only for admin/superadmin */}
+        {isAdmin && (
+          <div className="relative" ref={notifsRef}>
+            <button
+              className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-indigo-50 relative"
+              onClick={() => setShowNotifsDropdown((v) => !v)}
+              aria-label="Notifications"
+            >
+              <span className="text-xl">🔔</span>
+              {unreadCount > 0 && (
+                <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-bold" style={{ fontSize: 11 }}>{unreadCount}</span>
+              )}
+            </button>
+            {showNotifsDropdown && (
+              <div className="absolute right-0 mt-2 w-80 bg-white border rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+                <div className="flex items-center justify-between px-4 py-2 border-b">
+                  <span className="font-semibold text-gray-800">Notifications</span>
+                  {unreadCount > 0 && (
+                    <button onClick={handleMarkAllRead} className="text-xs text-blue-600 hover:underline">Mark all read</button>
+                  )}
+                </div>
+                <ul className="divide-y">
+                  {notifications.length === 0 ? (
+                    <li className="px-4 py-6 text-gray-400 text-center">No notifications</li>
+                  ) : notifications.map((n) => {
+                    // All notification types route to their main dashboard page (no ?id=...)
+                    let link = '#';
+                    if (n.type === 'transaction_created' || n.type === 'transaction_approved' || n.type === 'transaction_rejected') {
+                      link = '/transactions';
+                    } else if (n.type === 'invoice_reminder') {
+                      link = '/invoices';
+                    } else if (n.type === 'payroll_notification') {
+                      link = '/payroll';
+                    } else if (n.type === 'expense_alert') {
+                      link = '/expenses';
+                    } else if (n.type === 'proposal_notification') {
+                      link = '/proposals';
+                    } else if (n.type === 'task_assigned' || n.type === 'task_updated' || n.type === 'status_changed' || n.type === 'comment_added') {
+                      link = '/tasks';
+                    }
+                    return (
+                      <li key={n._id} className={`px-4 py-3 flex items-start gap-3 ${n.read ? 'opacity-60' : ''}`}>
+                        <span className="mt-1 text-lg">
+                          {NOTIF_ICON[n.type] || (n.type?.startsWith('transaction') ? '💸' : '🔔')}
+                        </span>
+                        <div className="flex-1">
+                          <a href={link} className="block group hover:bg-indigo-50 rounded px-1 -mx-1 transition">
+                            <div className="font-medium text-gray-900 group-hover:text-indigo-700">{n.title}</div>
+                            <div className="text-gray-500 text-sm">{n.message}</div>
+                            <div className="text-xs text-gray-400 mt-1">{fmtRelative(n.createdAt)}</div>
+                          </a>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
-              <ul className="divide-y">
-                {notifications.length === 0 ? (
-                  <li className="px-4 py-6 text-gray-400 text-center">No notifications</li>
-                ) : notifications.map((n) => (
-                  <li key={n._id} className={`px-4 py-3 flex items-start gap-3 ${n.read ? 'opacity-60' : ''}`}>
-                    <span className="mt-1 text-lg">
-                      {NOTIF_ICON[n.type] || (n.type?.startsWith('transaction') ? '💸' : '🔔')}
-                    </span>
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">{n.title}</div>
-                      <div className="text-gray-500 text-sm">{n.message}</div>
-                      <div className="text-xs text-gray-400 mt-1">{fmtRelative(n.createdAt)}</div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         <div className="text-right hidden sm:block">
           <p className="text-sm font-medium text-gray-700">{user?.name}</p>

@@ -15,7 +15,8 @@ const NotificationSchema = new mongoose.Schema(
         'expense_alert',
         'transaction_created',
         'transaction_approved',
-        'transaction_rejected'
+        'transaction_rejected',
+        'proposal_notification'
       ],
       default: 'task_assigned',
     },
@@ -23,6 +24,7 @@ const NotificationSchema = new mongoose.Schema(
     message: { type: String, default: '', trim: true },
     task: { type: mongoose.Schema.Types.ObjectId, ref: 'Task' },
     transaction: { type: mongoose.Schema.Types.ObjectId, ref: 'Transaction' },
+    proposal: { type: mongoose.Schema.Types.ObjectId, ref: 'Proposal' },
     read: { type: Boolean, default: false },
   },
   { timestamps: true }

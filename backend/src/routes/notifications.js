@@ -17,7 +17,11 @@ router.get('/', async (req, res) => {
       const allowedTypes = [];
       if (prefs.invoiceReminders) allowedTypes.push('invoice_reminder');
       if (prefs.payrollNotifications) allowedTypes.push('payroll_notification');
-      if (prefs.expenseAlerts) allowedTypes.push('expense_alert');
+      if (prefs.expenseAlerts) {
+        allowedTypes.push('expense_alert');
+        allowedTypes.push('transaction_created', 'transaction_approved', 'transaction_rejected');
+      }
+      if (prefs.proposalNotifications) allowedTypes.push('proposal_notification');
       if (allowedTypes.length > 0) {
         filter.type = { $in: allowedTypes };
       } else {
