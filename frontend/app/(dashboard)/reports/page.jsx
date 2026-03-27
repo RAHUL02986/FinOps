@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { reportsAPI } from '../../../lib/api';
+import { reportsAPI, teamsAPI } from '../../../lib/api';
 import toast from 'react-hot-toast';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -46,6 +46,9 @@ export default function ReportsPage() {
   const [comparisonData, setComparisonData] = useState(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [catType, setCatType] = useState('expenses'); // 'expenses' or 'income'
+  const [ledgerFilter, setLedgerFilter] = useState('all'); // 'all', 'expenses', 'income', 'team'
+  const [selectedTeam, setSelectedTeam] = useState(''); // Selected team for filtering
+  const [teams, setTeams] = useState([]); // Available teams
 
   // Helper function to convert period string to date range
   const parsePeriod = (periodStr) => {
@@ -80,10 +83,21 @@ export default function ReportsPage() {
 
   // Generate all month/year options
   const getAllPeriodOptions = () => {
-    const currentYear = new Date().getFullYear();
-    const years = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-11
+    const years = [currentYear - 2, currentYear - 1, currentYear];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return years.flatMap(year => months.map(month => `${month} ${year}`));
+    
+    const allOptions = years.flatMap(year => months.map(month => `${month} ${year}`));
+    
+    // Filter to only show months up to current month
+    return allOptions.filter(option => {
+      const [month, year] = option.split(' ');
+      const optionDate = new Date(parseInt(year), months.indexOf(month), 1);
+      const currentDate = new Date(currentYear, currentMonth, 1);
+      return optionDate <= currentDate;
+    });
   };
 
   // Helper function to calculate end month based on comparison type and start month
@@ -107,6 +121,16 @@ export default function ReportsPage() {
     
     const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + monthsToAdd, 1);
     return `${monthNames[endDate.getMonth()]} ${endDate.getFullYear()}`;
+  };
+
+  // Helper to check if two periods are the same
+  const arePeriodsEqual = (period1, period2) => {
+    return period1 === period2;
+  };
+
+  // Helper to check if range periods are the same
+  const areRangesEqual = (sm1, fm1, sm2, fm2) => {
+    return sm1 === sm2 && fm1 === fm2;
   };
 
   // Handle comparison type change and reset values
@@ -146,7 +170,6 @@ export default function ReportsPage() {
 
   // Load comparison data
   const loadComparisonData = async () => {
-    setComparisonLoading(true);
     try {
       let baseRange, targetRange;
       
@@ -160,6 +183,14 @@ export default function ReportsPage() {
         if (!rangeComparison.sm1 || !rangeComparison.fm1 || !rangeComparison.sm2 || !rangeComparison.fm2) return;
         baseRange = parseRange(rangeComparison.sm1, rangeComparison.fm1);
         targetRange = parseRange(rangeComparison.sm2, rangeComparison.fm2);
+      }
+      
+      setComparisonLoading(true);
+
+      // Add team filter if selected
+      if (selectedTeam) {
+        baseRange.team = selectedTeam;
+        targetRange.team = selectedTeam;
       }
 
       // Fetch data for both periods
@@ -205,8 +236,8 @@ export default function ReportsPage() {
         .sort((a, b) => Math.abs(parseFloat(b.value)) - Math.abs(parseFloat(a.value)))
         .slice(0, 4);
 
-      // Create ledger entries
-      const ledger = Object.entries(categoryComparison).map(([category, data]) => {
+      // Create ledger entries for expenses
+      const expenseLedger = Object.entries(categoryComparison).map(([category, data]) => {
         const variance = data.target - data.base;
         const variancePct = calcChange(data.base, data.target);
         return {
@@ -214,9 +245,43 @@ export default function ReportsPage() {
           base: data.base,
           target: data.target,
           variance,
-          variancePct
+          variancePct,
+          type: 'expense'
         };
       });
+
+      // Create ledger entries for income
+      const baseIncomeCats = baseData.data.income?.data || [];
+      const targetIncomeCats = targetData.data.income?.data || [];
+      const incomeCategoryComparison = {};
+      
+      baseIncomeCats.forEach(cat => {
+        incomeCategoryComparison[cat.category] = { base: cat.total, target: 0 };
+      });
+      targetIncomeCats.forEach(cat => {
+        if (!incomeCategoryComparison[cat.category]) {
+          incomeCategoryComparison[cat.category] = { base: 0, target: cat.total };
+        } else {
+          incomeCategoryComparison[cat.category].target = cat.total;
+        }
+      });
+
+      const incomeLedger = Object.entries(incomeCategoryComparison).map(([category, data]) => {
+        const variance = data.target - data.base;
+        const variancePct = calcChange(data.base, data.target);
+        return {
+          account: category,
+          base: data.base,
+          target: data.target,
+          variance,
+          variancePct,
+          type: 'income'
+        };
+      });
+
+      // Combine and sort ledger by absolute variance
+      const ledger = [...expenseLedger, ...incomeLedger]
+        .sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance));
 
       // Generate comparison trajectory data
       let trajectoryLabel1, trajectoryLabel2;
@@ -254,7 +319,7 @@ export default function ReportsPage() {
         },
         expenseDivergence,
         yearlyTrajectory: trajectoryData,
-        ledger: ledger.slice(0, 10) // Show top 10
+        ledger: ledger // Store all ledger data, filter in UI
       });
     } catch (error) {
       console.error('Failed to load comparison data:', error);
@@ -263,14 +328,31 @@ export default function ReportsPage() {
     setComparisonLoading(false);
   };
 
-  useEffect(() => { loadAll(); }, []);
+  // Load teams
+  const loadTeams = async () => {
+    try {
+      const res = await teamsAPI.getAll();
+      // Backend returns { success: true, data: teams }
+      const teamsList = Array.isArray(res.data?.data) ? res.data.data : [];
+      setTeams(teamsList);
+      console.log('Loaded teams:', teamsList); // Debug log
+    } catch (error) {
+      console.error('Failed to load teams:', error);
+      setTeams([]); // Ensure teams is always an array even on error
+    }
+  };
+
+  useEffect(() => { 
+    loadAll();
+    loadTeams();
+  }, []);
 
   // Load comparison data when tab is comparison or periods change
   useEffect(() => {
     if (tab === 'comparison') {
       loadComparisonData();
     }
-  }, [tab, comparisonPeriod.base, comparisonPeriod.target, rangeComparison, comparisonType]);
+  }, [tab, comparisonPeriod.base, comparisonPeriod.target, rangeComparison, comparisonType, selectedTeam]);
 
 
   const loadAll = async () => {
@@ -344,7 +426,6 @@ export default function ReportsPage() {
             <div className="flex flex-col md:flex-row gap-4 items-start">
               {/* Comparison Type Selector */}
               <div className="flex flex-col">
-                <label className="text-xs text-gray-500 mb-1">Comparison Type</label>
                 <select 
                   className="border rounded px-3 py-2 text-sm bg-white min-w-[120px]"
                   value={comparisonType} 
@@ -370,7 +451,13 @@ export default function ReportsPage() {
                     >
                       <option value="">Select Month 1</option>
                       {getAllPeriodOptions().map(option => (
-                        <option key={option} value={option}>{option}</option>
+                        <option 
+                          key={option} 
+                          value={option}
+                          disabled={option === comparisonPeriod.target}
+                        >
+                          {option}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -383,7 +470,13 @@ export default function ReportsPage() {
                     >
                       <option value="">Select Month 2</option>
                       {getAllPeriodOptions().map(option => (
-                        <option key={option} value={option}>{option}</option>
+                        <option 
+                          key={option} 
+                          value={option}
+                          disabled={option === comparisonPeriod.base}
+                        >
+                          {option}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -404,9 +497,20 @@ export default function ReportsPage() {
                           onChange={e => handleStartMonthChange(e.target.value, 'sm1', false)}
                         >
                           <option value="">Select SM1</option>
-                          {getAllPeriodOptions().map(option => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
+                          {getAllPeriodOptions().map(option => {
+                            const calculatedFM1 = comparisonType !== 'custom' 
+                              ? calculateEndMonth(option, comparisonType)
+                              : rangeComparison.fm1;
+                            const wouldMatch = areRangesEqual(
+                              option, calculatedFM1,
+                              rangeComparison.sm2, rangeComparison.fm2
+                            );
+                            return (
+                              <option key={option} value={option} disabled={wouldMatch}>
+                                {option}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
                       <div>
@@ -420,9 +524,17 @@ export default function ReportsPage() {
                           disabled={comparisonType !== 'custom'}
                         >
                           <option value="">Select FM1</option>
-                          {getAllPeriodOptions().map(option => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
+                          {getAllPeriodOptions().map(option => {
+                            const wouldMatch = areRangesEqual(
+                              rangeComparison.sm1, option,
+                              rangeComparison.sm2, rangeComparison.fm2
+                            );
+                            return (
+                              <option key={option} value={option} disabled={wouldMatch}>
+                                {option}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
                     </div>
@@ -445,9 +557,20 @@ export default function ReportsPage() {
                           onChange={e => handleStartMonthChange(e.target.value, 'sm2', true)}
                         >
                           <option value="">Select SM2</option>
-                          {getAllPeriodOptions().map(option => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
+                          {getAllPeriodOptions().map(option => {
+                            const calculatedFM2 = comparisonType !== 'custom' 
+                              ? calculateEndMonth(option, comparisonType)
+                              : rangeComparison.fm2;
+                            const wouldMatch = areRangesEqual(
+                              option, calculatedFM2,
+                              rangeComparison.sm1, rangeComparison.fm1
+                            );
+                            return (
+                              <option key={option} value={option} disabled={wouldMatch}>
+                                {option}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
                       <div>
@@ -461,9 +584,17 @@ export default function ReportsPage() {
                           disabled={comparisonType !== 'custom'}
                         >
                           <option value="">Select FM2</option>
-                          {getAllPeriodOptions().map(option => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
+                          {getAllPeriodOptions().map(option => {
+                            const wouldMatch = areRangesEqual(
+                              rangeComparison.sm2, option,
+                              rangeComparison.sm1, rangeComparison.fm1
+                            );
+                            return (
+                              <option key={option} value={option} disabled={wouldMatch}>
+                                {option}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
                     </div>
@@ -550,6 +681,36 @@ export default function ReportsPage() {
                   <h4 className="font-semibold text-gray-800">Precision Variance Ledger</h4>
                   <span className="text-xs text-gray-400">Auto-synced: Just now</span>
                 </div>
+                
+                {/* Filter Dropdowns */}
+                <div className="mb-3 flex gap-4">
+                  <div>
+                    <label className="text-sm text-gray-600 mr-2">Type:</label>
+                    <select 
+                      className="border rounded px-3 py-1 text-sm"
+                      value={ledgerFilter}
+                      onChange={e => setLedgerFilter(e.target.value)}
+                    >
+                      <option value="all">All</option>
+                      <option value="expenses">Expenses Only</option>
+                      <option value="income">Income Only</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600 mr-2">Team:</label>
+                    <select 
+                      className="border rounded px-3 py-1 text-sm"
+                      value={selectedTeam}
+                      onChange={e => setSelectedTeam(e.target.value)}
+                    >
+                      <option value="">All Teams</option>
+                      {Array.isArray(teams) && teams.map(team => (
+                        <option key={team._id} value={team._id}>{team.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead>
@@ -572,19 +733,35 @@ export default function ReportsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {comparisonData.ledger.map((row, i) => (
-                        <tr key={i} className="border-b last:border-0">
-                          <td className="py-2 px-2 font-medium text-gray-700">{row.account}</td>
-                          <td className="py-2 px-2">₹{row.base.toLocaleString()}</td>
-                          <td className="py-2 px-2">₹{row.target.toLocaleString()}</td>
-                          <td className={`py-2 px-2 font-semibold ${row.variance < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {row.variance < 0 ? '-' : '+'}₹{Math.abs(row.variance).toLocaleString()}
-                          </td>
-                          <td className={`py-2 px-2 font-semibold ${row.variance < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {row.variancePct}
-                          </td>
-                        </tr>
-                      ))}
+                      {comparisonData.ledger
+                        .filter(row => {
+                          if (ledgerFilter === 'all') return true;
+                          if (ledgerFilter === 'expenses') return row.type === 'expense';
+                          if (ledgerFilter === 'income') return row.type === 'income';
+                          return true;
+                        })
+                        .slice(0, 15) // Show top 15 entries
+                        .map((row, i) => (
+                          <tr key={i} className="border-b last:border-0">
+                            <td className="py-2 px-2 font-medium text-gray-700">
+                              {row.account}
+                              <span className={`ml-2 text-xs px-2 py-0.5 rounded ${
+                                row.type === 'expense' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                              }`}>
+                                {row.type}
+                              </span>
+                            </td>
+                            <td className="py-2 px-2">₹{row.base.toLocaleString()}</td>
+                            <td className="py-2 px-2">₹{row.target.toLocaleString()}</td>
+                            <td className={`py-2 px-2 font-semibold ${row.variance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                              {row.variance < 0 ? '-' : '+'}₹{Math.abs(row.variance).toLocaleString()}
+                            </td>
+                            <td className={`py-2 px-2 font-semibold ${row.variance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                              {row.variancePct}
+                            </td>
+                          </tr>
+                        ))
+                      }
                     </tbody>
                   </table>
                 </div>

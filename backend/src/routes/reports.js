@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const { protect } = require('../middleware/auth');
 const { authorize } = require('../middleware/roleCheck');
 const Transaction = require('../models/Transaction');
@@ -10,12 +11,17 @@ router.use(protect);
 // GET reports - spending by category (from Transaction)
 router.get('/spending-by-category', async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, team } = req.query;
     const dateMatch = {};
     if (startDate || endDate) {
       dateMatch.date = {};
       if (startDate) dateMatch.date.$gte = new Date(startDate);
       if (endDate) dateMatch.date.$lte = new Date(endDate);
+    }
+    
+    // Add team filter if provided
+    if (team) {
+      dateMatch.team = new mongoose.Types.ObjectId(team);
     }
 
     // Expenses by category

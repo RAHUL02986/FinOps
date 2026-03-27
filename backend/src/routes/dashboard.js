@@ -19,10 +19,25 @@ const getPeriodStart = (period) => {
       return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14);
     case 'month':
       return new Date(now.getFullYear(), now.getMonth(), 1);
+    case 'lastMonth':
+      // First day of last month
+      return new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    case 'last2Months':
+      // First day of 2 months ago
+      return new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    case 'last3Months':
+      // First day of 3 months ago
+      return new Date(now.getFullYear(), now.getMonth() - 3, 1);
+    case 'last6Months':
+      // First day of 6 months ago
+      return new Date(now.getFullYear(), now.getMonth() - 6, 1);
     case 'quarter':
       return new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
     case 'year':
       return new Date(now.getFullYear(), 0, 1);
+    case 'lastYear':
+      // First day of last year
+      return new Date(now.getFullYear() - 1, 0, 1);
     default:
       return null;
   }
@@ -31,10 +46,25 @@ const getPeriodStart = (period) => {
 // GET /api/dashboard/summary
 router.get('/summary', async (req, res) => {
   try {
-    const { period = 'month' } = req.query;
+    const { period = 'month', startDate, endDate } = req.query;
 
-    const startDate = getPeriodStart(period);
-    const dateMatch = startDate ? { date: { $gte: startDate } } : {};
+    let dateMatch = {};
+    
+    // Handle custom date range
+    if (period === 'custom' && startDate && endDate) {
+      dateMatch = {
+        date: {
+          $gte: new Date(startDate),
+          $lte: new Date(endDate)
+        }
+      };
+    } else {
+      const periodStart = getPeriodStart(period);
+      if (periodStart) {
+        dateMatch = { date: { $gte: periodStart } };
+      }
+    }
+    
     let matchBase = { status: 'Approved', ...dateMatch };
     // All users, including admin/superadmin, see only approved transactions
     // If you want to restrict to user's own transactions, uncomment below:
@@ -66,8 +96,11 @@ router.get('/summary', async (req, res) => {
     // Calculate available funds (sum of all account balances)
     const availableFunds = accounts.reduce((sum, acc) => sum + (acc.currentBalance || 0), 0);
 
-    // Calculate OD limit used (sum of all OD account balances)
-    const odLimitUsed = odAccounts.reduce((sum, acc) => sum + (acc.currentBalance || 0), 0);
+    // Calculate OD/CC metrics
+    const odTotalLimit = odAccounts.reduce((sum, acc) => sum + (acc.creditLimit || 0), 0);
+    const odCurrentBalance = odAccounts.reduce((sum, acc) => sum + (acc.currentBalance || 0), 0);
+    const odUsedTotal = odTotalLimit - odCurrentBalance; // Total amount used from OD/CC
+    const odLimitRemaining = odCurrentBalance; // Remaining OD/CC limit
 
     res.json({
       success: true,
@@ -78,7 +111,9 @@ router.get('/summary', async (req, res) => {
         transactionCount,
         recentTransactions,
         availableFunds,
-        odLimitUsed,
+        odLimitRemaining, // Remaining OD/CC limit (for OD Limit Used box)
+        odUsedTotal, // Total OD/CC used (for Revenue box)
+        hasOdAccounts: odAccounts.length > 0,
       },
     });
   } catch (error) {
@@ -89,12 +124,14 @@ router.get('/summary', async (req, res) => {
 // GET /api/dashboard/chart
 router.get('/chart', async (req, res) => {
   try {
+    const { period = 'month', startDate, endDate } = req.query;
 
-const isHr = req.user.role === 'hr';
+    const isHr = req.user.role === 'hr';
     const userId = mongoose.isValidObjectId(req.user.id) ? new mongoose.Types.ObjectId(req.user.id) : null;
     // superadmin and hr see all, others see only their own
     // All users, including admin/superadmin, see only approved transactions
     const userMatch = { status: 'Approved' };
+    
     // Last 6 months data from Transaction collection
     const monthlyData = [];
     for (let i = 5; i >= 0; i--) {
@@ -122,9 +159,24 @@ const isHr = req.user.role === 'hr';
       });
     }
 
-    // Expense category breakdown (all time) from Transaction collection
+    // Expense category breakdown - apply date filter based on period or custom range
+    let categoryDateMatch = {};
+    if (period === 'custom' && startDate && endDate) {
+      categoryDateMatch = {
+        date: {
+          $gte: new Date(startDate),
+          $lte: new Date(endDate)
+        }
+      };
+    } else {
+      const periodStart = getPeriodStart(period);
+      if (periodStart) {
+        categoryDateMatch = { date: { $gte: periodStart } };
+      }
+    }
+    
     const categoryBreakdown = await Transaction.aggregate([
-      { $match: { ...userMatch, status: 'Approved', type: 'expense' } },
+      { $match: { ...userMatch, status: 'Approved', type: 'expense', ...categoryDateMatch } },
       { $group: { _id: '$category', value: { $sum: '$amount' } } },
       { $sort: { value: -1 } },
     ]);

@@ -3,15 +3,16 @@
 const formatCurrency = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(n ?? 0);
 
-const StatCard = ({ title, value, icon, bgColor, textColor, subtext }) => (
+const StatCard = ({ title, value, icon, bgColor, textColor, subtext, badge }) => (
   <div className="card flex items-center gap-4">
     <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${bgColor}`}>
       {icon}
     </div>
-    <div>
+    <div className="flex-1">
       <p className="text-sm text-gray-500">{title}</p>
       <p className={`text-2xl font-bold ${textColor}`}>{value}</p>
       {subtext && <p className="text-xs text-gray-400 mt-0.5">{subtext}</p>}
+      {badge && <div className="mt-1">{badge}</div>}
     </div>
   </div>
 );
@@ -49,10 +50,10 @@ export default function DashboardStats({ summary, role }) {
           </svg>
         }
       />
-      {/* 3. OD Limit Used */}
+      {/* 3. OD Limit Remaining */}
       <StatCard
         title="OD Limit Used"
-        value={formatCurrency(summary?.odLimitUsed)}
+        value={formatCurrency(summary?.odLimitRemaining ?? 0)}
         bgColor="bg-yellow-100"
         textColor="text-yellow-700"
         icon={
@@ -73,6 +74,13 @@ export default function DashboardStats({ summary, role }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 0V4m0 12v4" />
           </svg>
+        }
+        badge={
+          summary?.hasOdAccounts && summary?.odUsedTotal > 0 ? (
+            <span className="inline-block px-2 py-1 text-xs font-semibold text-red-600 bg-red-100 rounded">
+              OD Used: -{formatCurrency(summary.odUsedTotal)}
+            </span>
+          ) : null
         }
       />
     </div>
