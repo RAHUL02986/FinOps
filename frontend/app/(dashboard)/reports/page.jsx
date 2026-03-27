@@ -19,12 +19,29 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
   const [tab, setTab] = useState('category');
+  
+  // Helper to get current and previous month
+  const getCurrentAndPreviousMonth = () => {
+    const now = new Date();
+    const currentMonth = now.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    
+    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const previousMonth = prevDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    
+    return { current: currentMonth, previous: previousMonth };
+  };
+  
+  const defaultMonths = getCurrentAndPreviousMonth();
+  
   // Comparison tab state
   const [comparisonType, setComparisonType] = useState('monthly'); // 'monthly', 'quarterly', 'semi-yearly', 'yearly'
-  const [comparisonPeriod, setComparisonPeriod] = useState({ base: 'Nov 2025', target: 'Dec 2025' });
+  const [comparisonPeriod, setComparisonPeriod] = useState({ 
+    base: defaultMonths.previous, 
+    target: defaultMonths.current 
+  });
   const [rangeComparison, setRangeComparison] = useState({
-    sm1: 'Jan 2024', fm1: 'Jun 2024',
-    sm2: 'Jan 2025', fm2: 'Jun 2025'
+    sm1: '', fm1: '',
+    sm2: '', fm2: ''
   });
   const [comparisonData, setComparisonData] = useState(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
