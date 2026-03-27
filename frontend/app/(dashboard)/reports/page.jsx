@@ -344,7 +344,6 @@ export default function ReportsPage() {
             <div className="flex flex-col md:flex-row gap-4 items-start">
               {/* Comparison Type Selector */}
               <div className="flex flex-col">
-                <label className="text-xs text-gray-500 mb-1">Comparison Type</label>
                 <select 
                   className="border rounded px-3 py-2 text-sm bg-white min-w-[120px]"
                   value={comparisonType} 
