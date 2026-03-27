@@ -192,7 +192,7 @@ const ELEVATED_NAV = [
   ];
 
   const ADMIN_NAV = [
-    {
+       {
       href: '/admin/users',
       label: 'Users',
       icon: (
