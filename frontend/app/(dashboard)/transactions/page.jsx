@@ -325,9 +325,16 @@ function TransactionModal({ onClose }) {
               <label className="block text-sm font-medium mb-1">Employee (Optional)</label>
               <select value={employee} onChange={e => setEmployee(e.target.value)} className="input w-full">
                 <option value="">None</option>
-                  {employees.map(emp => (
-                    <option key={emp._id} value={emp._id}>{emp.name}</option>
-                  ))}
+                {(team
+                  ? (() => {
+                      const selectedTeam = teams.find(t => t._id === team);
+                      if (!selectedTeam) return [];
+                      return employees.filter(emp => emp.department === selectedTeam.name);
+                    })()
+                  : employees
+                ).map(emp => (
+                  <option key={emp._id} value={emp._id}>{emp.name}</option>
+                ))}
               </select>
             </div>
           </div>

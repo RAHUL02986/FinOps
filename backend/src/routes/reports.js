@@ -11,25 +11,31 @@ router.use(protect);
 // GET reports - spending by category (from Transaction)
 router.get('/spending-by-category', async (req, res) => {
   try {
-    const { startDate, endDate, team } = req.query;
+    const { startDate, endDate, team, employee } = req.query;
     const dateMatch = {};
     if (startDate || endDate) {
       dateMatch.date = {};
       if (startDate) dateMatch.date.$gte = new Date(startDate);
       if (endDate) dateMatch.date.$lte = new Date(endDate);
     }
-    
     // Add team filter if provided
     if (team) {
       dateMatch.team = new mongoose.Types.ObjectId(team);
     }
+    // Add employee filter if provided
+    if (employee) {
+      dateMatch.employee = new mongoose.Types.ObjectId(employee);
+    }
 
+    // Debug log for filter
+    console.log('dateMatch:', dateMatch);
     // Expenses by category
     const expenseResult = await Transaction.aggregate([
       { $match: { type: 'expense', ...dateMatch } },
       { $group: { _id: '$category', total: { $sum: '$amount' }, count: { $sum: 1 } } },
       { $sort: { total: -1 } }
     ]);
+    console.log('expenseResult:', expenseResult);
     const expenseGrandTotal = expenseResult.reduce((s, r) => s + r.total, 0);
     const expenseData = expenseResult.map(r => ({
       category: r._id,

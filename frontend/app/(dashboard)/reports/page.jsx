@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { reportsAPI, teamsAPI } from '../../../lib/api';
+import { reportsAPI, teamsAPI, usersAPI } from '../../../lib/api';
 import toast from 'react-hot-toast';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -49,6 +49,8 @@ export default function ReportsPage() {
   const [ledgerFilter, setLedgerFilter] = useState('all'); // 'all', 'expenses', 'income', 'team'
   const [selectedTeam, setSelectedTeam] = useState(''); // Selected team for filtering
   const [teams, setTeams] = useState([]); // Available teams
+  const [employees, setEmployees] = useState([]); // Available employees
+  const [selectedEmployee, setSelectedEmployee] = useState(''); // Selected employee for filtering
 
   // Helper function to convert period string to date range
   const parsePeriod = (periodStr) => {
@@ -170,6 +172,7 @@ export default function ReportsPage() {
 
   // Load comparison data
   const loadComparisonData = async () => {
+      console.log('Selected employee for filter:', selectedEmployee);
     try {
       let baseRange, targetRange;
       
@@ -193,6 +196,15 @@ export default function ReportsPage() {
         targetRange.team = selectedTeam;
       }
 
+      // Add employee filter if selected
+      if (selectedEmployee) {
+        baseRange.employee = selectedEmployee;
+        targetRange.employee = selectedEmployee;
+      }
+
+      // Debug log for API params
+      console.log('API params for baseRange:', baseRange);
+      console.log('API params for targetRange:', targetRange);
       // Fetch data for both periods
       const [baseData, targetData] = await Promise.all([
         reportsAPI.spendingByCategory(baseRange),
@@ -342,9 +354,20 @@ export default function ReportsPage() {
     }
   };
 
+  // Load employees
+  const loadEmployees = async () => {
+    try {
+      const res = await usersAPI.getAll();
+      setEmployees(Array.isArray(res.data?.data) ? res.data.data : []);
+    } catch (error) {
+      setEmployees([]);
+    }
+  };
+
   useEffect(() => { 
     loadAll();
     loadTeams();
+    loadEmployees();
   }, []);
 
   // Load comparison data when tab is comparison or periods change
@@ -352,7 +375,7 @@ export default function ReportsPage() {
     if (tab === 'comparison') {
       loadComparisonData();
     }
-  }, [tab, comparisonPeriod.base, comparisonPeriod.target, rangeComparison, comparisonType, selectedTeam]);
+  }, [tab, comparisonPeriod.base, comparisonPeriod.target, rangeComparison, comparisonType, selectedTeam, selectedEmployee]);
 
 
   const loadAll = async () => {
@@ -707,6 +730,33 @@ export default function ReportsPage() {
                       {Array.isArray(teams) && teams.map(team => (
                         <option key={team._id} value={team._id}>{team.name}</option>
                       ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600 mr-2">Employee:</label>
+                    <select
+                      className="border rounded px-3 py-1 text-sm"
+                      value={selectedEmployee}
+                      onChange={e => {
+                        console.log('Dropdown selected value:', e.target.value);
+                        setSelectedEmployee(e.target.value);
+                      }}
+                    >
+                      <option value="">All Employees</option>
+                      {Array.isArray(employees) && (
+                        selectedTeam
+                          ? employees
+                              .filter(emp => {
+                                const teamObj = teams.find(t => t._id === selectedTeam);
+                                return teamObj && emp.department === teamObj.name;
+                              })
+                              .map(emp => (
+                                <option key={emp._id} value={emp._id}>{emp.name}</option>
+                              ))
+                          : employees.map(emp => (
+                              <option key={emp._id} value={emp._id}>{emp.name}</option>
+                            ))
+                      )}
                     </select>
                   </div>
                 </div>
