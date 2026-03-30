@@ -304,7 +304,9 @@ function TransactionModal({ onClose }) {
             <label className="block text-sm font-medium mb-1">Account</label>
             <select value={account} onChange={e => setAccount(e.target.value)} className="input w-full">
               <option value="">Select account</option>
-                {accounts.map(acc => (
+              {accounts
+                .filter(acc => acc.isActive !== false && (acc.type !== 'od_cc' || acc.includeInAvailableFunds))
+                .map(acc => (
                   <option key={acc._id} value={acc._id}>{acc.name} ({acc.bankName})</option>
                 ))}
             </select>

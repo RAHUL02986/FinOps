@@ -28,6 +28,7 @@ const TransactionSchema = new mongoose.Schema(
     account: {
       type: mongoose.Schema.ObjectId,
       ref: 'Account',
+      required: [true, 'Account is required'],
     },
     team: {
       type: mongoose.Schema.ObjectId,

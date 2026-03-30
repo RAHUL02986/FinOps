@@ -50,9 +50,9 @@ export default function DashboardStats({ summary, role }) {
           </svg>
         }
       />
-      {/* 3. OD Limit Remaining */}
+      {/* 3. OD Limit Remaining (Current Balance) */}
       <StatCard
-        title="OD Limit Used"
+        title="OD Limit Remaining"
         value={formatCurrency(summary?.odLimitRemaining ?? 0)}
         bgColor="bg-yellow-100"
         textColor="text-yellow-700"
@@ -63,24 +63,17 @@ export default function DashboardStats({ summary, role }) {
           </svg>
         }
       />
-      {/* 4. Revenue (Total Income) */}
+      {/* 4. Used OD/CC Balance (Used Balance) */}
       <StatCard
-        title="Revenue this Month"
-        value={formatCurrency(summary?.totalIncome)}
-        bgColor="bg-green-100"
-        textColor="text-green-700"
+        title="Used OD/CC Balance"
+        value={formatCurrency(summary?.odUsedTotal ?? 0)}
+        bgColor="bg-red-100"
+        textColor="text-red-700"
         icon={
-          <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 0V4m0 12v4" />
+              d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
           </svg>
-        }
-        badge={
-          summary?.hasOdAccounts && summary?.odUsedTotal > 0 ? (
-            <span className="inline-block px-2 py-1 text-xs font-semibold text-red-600 bg-red-100 rounded">
-              OD Used: -{formatCurrency(summary.odUsedTotal)}
-            </span>
-          ) : null
         }
       />
     </div>

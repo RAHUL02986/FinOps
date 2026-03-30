@@ -12,7 +12,7 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ name: '', type: 'current', bankName: '', accountNumber: '', openingBalance: 0, currency: 'INR', creditLimit: 0 });
+  const [form, setForm] = useState({ name: '', type: 'current', bankName: '', accountNumber: '', openingBalance: 0, currency: 'INR', creditLimit: 0, includeInAvailableFunds: true });
 
   useEffect(() => { load(); }, []);
   const load = async () => {
@@ -29,8 +29,16 @@ export default function AccountsPage() {
   const handleSave = async (e) => {
     e.preventDefault();
     try {
-      if (editingId) { await accountsAPI.update(editingId, form); toast.success('Updated'); }
-      else { await accountsAPI.create(form); toast.success('Created'); }
+      let saveForm = { ...form };
+      if (form.type === 'od_cc') {
+        saveForm.creditLimit = form.openingBalance;
+      }
+      // Only send includeInAvailableFunds for od_cc
+      if (form.type !== 'od_cc') {
+        delete saveForm.includeInAvailableFunds;
+      }
+      if (editingId) { await accountsAPI.update(editingId, saveForm); toast.success('Updated'); }
+      else { await accountsAPI.create(saveForm); toast.success('Created'); }
       setShowForm(false); setEditingId(null); load();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
   };
@@ -41,12 +49,36 @@ export default function AccountsPage() {
   };
 
   const handleEdit = (a) => {
-    setForm({ name: a.name, type: a.type, bankName: a.bankName || '', accountNumber: a.accountNumber || '', openingBalance: a.openingBalance, currency: a.currency || 'INR', creditLimit: a.creditLimit || 0 });
+    setForm({
+      name: a.name,
+      type: a.type,
+      bankName: a.bankName || '',
+      accountNumber: a.accountNumber || '',
+      openingBalance: a.openingBalance,
+      currency: a.currency || 'INR',
+      creditLimit: a.creditLimit || 0,
+      includeInAvailableFunds: typeof a.includeInAvailableFunds === 'boolean' ? a.includeInAvailableFunds : (a.type !== 'od_cc')
+    });
     setEditingId(a._id); setShowForm(true);
   };
 
-  const totalBalance = accounts.filter(a => a.type !== 'od_cc' && (a.isActive !== false)).reduce((s, a) => s + a.currentBalance, 0);
-  const odUsed = accounts.filter(a => a.type === 'od_cc' && (a.isActive !== false)).reduce((s, a) => s + Math.abs(a.currentBalance), 0);
+  // Only sum accounts where includeInAvailableFunds is true
+  const totalBalance = accounts.filter(a => a.includeInAvailableFunds && (a.isActive !== false)).reduce((s, a) => s + a.currentBalance, 0);
+    // Toggle handler for OD/CC includeInAvailableFunds
+    const handleToggleInclude = async (a) => {
+      try {
+        await accountsAPI.update(a._id, { includeInAvailableFunds: !a.includeInAvailableFunds });
+        toast.success('Updated Available Funds setting');
+        load();
+      } catch (err) {
+        toast.error('Failed to update');
+      }
+    };
+  // OD/CC Used: creditLimit - currentBalance, show 0 if no usage, always negative if used
+  const odUsed = accounts.filter(a => a.type === 'od_cc' && (a.isActive !== false)).reduce((s, a) => {
+    const used = (a.creditLimit || 0) - (a.currentBalance || 0);
+    return s + (used > 0 ? -used : 0);
+  }, 0);
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600" /></div>;
 
@@ -60,9 +92,14 @@ export default function AccountsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="bg-white rounded-xl border p-5"><p className="text-sm text-gray-500">Total Available Funds</p><p className="text-3xl font-bold text-green-600">₹{totalBalance.toLocaleString()}</p><p className="text-xs text-gray-400 mt-1">Excludes OD/CC accounts</p></div>
         {/* Only show OD/CC Used box if there is at least one OD/CC account */}
-        {accounts.some(a => a.type === 'od_cc') && (
-          <div className="bg-white rounded-xl border p-5"><p className="text-sm text-gray-500">OD/CC Used</p><p className="text-3xl font-bold text-red-600">₹{odUsed.toLocaleString()}</p></div>
-        )}
+        {accounts.filter(a => a.type === 'od_cc' && (a.isActive !== false)).map(a => (
+          <div key={a._id} className="bg-white rounded-xl border p-5">
+            <p className="text-sm text-gray-500">OD/CC Opening Balance ({a.name})</p>
+            <p className="text-3xl font-bold text-blue-700">
+              ₹{(a.creditLimit || 0).toLocaleString()}
+            </p>
+          </div>
+        ))}
       </div>
 
       {showForm && (
@@ -95,12 +132,28 @@ export default function AccountsPage() {
             <h3 className="font-semibold text-gray-900 text-lg">{a.name}</h3>
             {a.bankName && <p className="text-sm text-gray-500">{a.bankName}</p>}
             {a.accountNumber && <p className="text-xs text-gray-400 mt-1">•••• {a.accountNumber.slice(-4)}</p>}
-            <p className="text-2xl font-bold mt-3 text-gray-900">{a.currency} {a.currentBalance.toLocaleString()}</p>
-            {a.type === 'od_cc' && (
-              <div className="flex items-center gap-2 mb-2">
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">OD/CC</span>
-                <span className="text-xs text-gray-500">(Overdraft/Cash Credit Account)</span>
-              </div>
+            {/* For OD/CC accounts, always show opening balance (creditLimit) */}
+            {a.type === 'od_cc' ? (
+              <>
+                <p className="text-2xl font-bold mt-3 text-gray-900">{a.currency} {a.creditLimit ? a.creditLimit.toLocaleString() : '0'}</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">OD/CC</span>
+                  <span className="text-xs text-gray-500">(Overdraft/Cash Credit Account)</span>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="checkbox"
+                    checked={!!a.includeInAvailableFunds}
+                    onChange={() => handleToggleInclude(a)}
+                    id={`includeInFunds-${a._id}`}
+                  />
+                  <label htmlFor={`includeInFunds-${a._id}`} className="text-xs text-gray-700 cursor-pointer">
+                    Include in Available Funds
+                  </label>
+                </div>
+              </>
+            ) : (
+              <p className="text-2xl font-bold mt-3 text-gray-900">{a.currency} {a.currentBalance.toLocaleString()}</p>
             )}
             <div className="flex gap-2 mt-4">
               <button onClick={() => handleEdit(a)} className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg flex-1">Edit</button>

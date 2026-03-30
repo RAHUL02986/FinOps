@@ -88,6 +88,22 @@ router.post(
         status: status || undefined,
       });
 
+      // Update OD/CC account balance if applicable
+      const Account = require('../models/Account');
+      if (txn.account) {
+        const account = await Account.findById(txn.account);
+        if (account && account.type === 'od_cc') {
+          if (txn.type === 'expense') {
+            // Using OD/CC: decrease balance
+            account.currentBalance = Math.max(0, account.currentBalance - txn.amount);
+          } else if (txn.type === 'income') {
+            // Repayment: increase balance, but not above creditLimit
+            account.currentBalance = Math.min(account.creditLimit, account.currentBalance + txn.amount);
+          }
+          await account.save();
+        }
+      }
+
       // Notify admin on new transaction (draft/pending/approved)
       const notifyType =
         status === 'Draft' ? 'transaction_created'
@@ -159,6 +175,22 @@ router.delete('/:id', async (req, res) => {
   try {
     const txn = await Transaction.findByIdAndDelete(req.params.id);
     if (!txn) return res.status(404).json({ success: false, message: 'Transaction not found' });
+
+    // Reverse OD/CC account balance if applicable
+    if (txn.account) {
+      const Account = require('../models/Account');
+      const account = await Account.findById(txn.account);
+      if (account && account.type === 'od_cc') {
+        if (txn.type === 'expense') {
+          // Deleting an expense: add amount back
+          account.currentBalance = Math.min(account.creditLimit, account.currentBalance + txn.amount);
+        } else if (txn.type === 'income') {
+          // Deleting a repayment: subtract amount (not below zero)
+          account.currentBalance = Math.max(0, account.currentBalance - txn.amount);
+        }
+        await account.save();
+      }
+    }
 
     // No need to delete Income/Expense; dashboard uses only Transaction
 

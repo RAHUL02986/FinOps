@@ -14,6 +14,7 @@ const accountSchema = new mongoose.Schema({
   currency: { type: String, default: 'INR' },
   isActive: { type: Boolean, default: true },
   creditLimit: { type: Number, default: 0 }, // for od_cc type
+  includeInAvailableFunds: { type: Boolean, default: function() { return this.type !== 'od_cc'; } },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 

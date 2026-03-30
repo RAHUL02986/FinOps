@@ -27,11 +27,16 @@ router.use(authorize('superadmin', 'hr'));
 // POST create account
 router.post('/', async (req, res) => {
   try {
-    const account = await Account.create({
+    // Only allow includeInAvailableFunds if present in body, else use model default
+    const accountData = {
       ...req.body,
       currentBalance: req.body.openingBalance || 0,
       createdBy: req.user._id
-    });
+    };
+    if (typeof req.body.includeInAvailableFunds !== 'undefined') {
+      accountData.includeInAvailableFunds = req.body.includeInAvailableFunds;
+    }
+    const account = await Account.create(accountData);
     res.status(201).json(account);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -41,7 +46,12 @@ router.post('/', async (req, res) => {
 // PUT update account
 router.put('/:id', async (req, res) => {
   try {
-    const account = await Account.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    // Only allow includeInAvailableFunds if present in body
+    const updateData = { ...req.body };
+    if (typeof req.body.includeInAvailableFunds === 'undefined') {
+      delete updateData.includeInAvailableFunds;
+    }
+    const account = await Account.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
     if (!account) return res.status(404).json({ message: 'Account not found' });
     res.json(account);
   } catch (err) {

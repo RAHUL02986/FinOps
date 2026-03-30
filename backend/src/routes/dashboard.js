@@ -73,7 +73,8 @@ router.get('/summary', async (req, res) => {
     // }
 
     const Account = require('../models/Account');
-    const [incomeAgg, expenseAgg, recentTxns, accounts, odAccounts] = await Promise.all([
+    // Get all accounts with isActive true
+    const [incomeAgg, expenseAgg, recentTxns, allAccounts, odAccounts] = await Promise.all([
       Transaction.aggregate([
         { $match: { ...matchBase, type: 'income' } },
         { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
@@ -93,13 +94,20 @@ router.get('/summary', async (req, res) => {
 
     const recentTransactions = recentTxns.map((t) => ({ ...t.toObject(), type: t.type }));
 
-    // Calculate available funds (sum of all account balances)
-    const availableFunds = accounts.reduce((sum, acc) => sum + (acc.currentBalance || 0), 0);
+    // Calculate available funds (sum of all account balances where includeInAvailableFunds is true)
+    const availableFunds = allAccounts.filter(acc => acc.includeInAvailableFunds).reduce((sum, acc) => sum + (acc.currentBalance || 0), 0);
+
 
     // Calculate OD/CC metrics
     const odTotalLimit = odAccounts.reduce((sum, acc) => sum + (acc.creditLimit || 0), 0);
     const odCurrentBalance = odAccounts.reduce((sum, acc) => sum + (acc.currentBalance || 0), 0);
-    const odUsedTotal = odTotalLimit - odCurrentBalance; // Total amount used from OD/CC
+    const odAccountIds = odAccounts.map(acc => acc._id);
+    // Used OD/CC Balance: sum of all OD/CC expense transactions (negative value, 0 if unused)
+    const odUsedAgg = await Transaction.aggregate([
+      { $match: { ...matchBase, type: 'expense', account: { $in: odAccountIds } } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]);
+    const odUsedTotal = odUsedAgg[0]?.total ? -odUsedAgg[0].total : 0;
     const odLimitRemaining = odCurrentBalance; // Remaining OD/CC limit
 
     res.json({
