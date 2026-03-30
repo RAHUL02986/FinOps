@@ -46,7 +46,7 @@ const getPeriodStart = (period) => {
 // GET /api/dashboard/summary
 router.get('/summary', async (req, res) => {
   try {
-    const { period = 'month', startDate, endDate } = req.query;
+    const { period = 'month', startDate, endDate, team, employee } = req.query;
 
     let dateMatch = {};
     
@@ -66,6 +66,12 @@ router.get('/summary', async (req, res) => {
     }
     
     let matchBase = { status: 'Approved', ...dateMatch };
+    if (team) {
+      matchBase.team = new mongoose.Types.ObjectId(team);
+    }
+    if (employee) {
+      matchBase.employee = new mongoose.Types.ObjectId(employee);
+    }
     // All users, including admin/superadmin, see only approved transactions
     // If you want to restrict to user's own transactions, uncomment below:
     // if (req.user.role !== 'superadmin' && req.user.role !== 'hr') {
@@ -110,6 +116,20 @@ router.get('/summary', async (req, res) => {
     const odUsedTotal = odUsedAgg[0]?.total ? -odUsedAgg[0].total : 0;
     const odLimitRemaining = odCurrentBalance; // Remaining OD/CC limit
 
+    // Category breakdown for income and expenses
+    const [incomeByCat, expenseByCat] = await Promise.all([
+      Transaction.aggregate([
+        { $match: { ...matchBase, type: 'income' } },
+        { $group: { _id: '$category', total: { $sum: '$amount' } } },
+        { $sort: { total: -1 } }
+      ]),
+      Transaction.aggregate([
+        { $match: { ...matchBase, type: 'expense' } },
+        { $group: { _id: '$category', total: { $sum: '$amount' } } },
+        { $sort: { total: -1 } }
+      ]),
+    ]);
+
     res.json({
       success: true,
       data: {
@@ -122,6 +142,8 @@ router.get('/summary', async (req, res) => {
         odLimitRemaining, // Remaining OD/CC limit (for OD Limit Used box)
         odUsedTotal, // Total OD/CC used (for Revenue box)
         hasOdAccounts: odAccounts.length > 0,
+        incomeByCat,
+        expenseByCat,
       },
     });
   } catch (error) {

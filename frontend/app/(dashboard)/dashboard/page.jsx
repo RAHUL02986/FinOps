@@ -1,4 +1,5 @@
 "use client";
+import { teamsAPI, usersAPI } from '../../../lib/api';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../context/AuthContext';
@@ -7,7 +8,6 @@ import DashboardStats from '../../../components/DashboardStats';
 import DashboardChart from '../../../components/DashboardChart';
 import TransactionTable from '../../../components/TransactionTable';
 import toast from 'react-hot-toast';
-
 const PERIODS = [
   { value: 'day', label: 'Today' },
   { value: 'week', label: 'Last 7 Days' },
@@ -19,6 +19,9 @@ const PERIODS = [
   { value: 'last6Months', label: 'Last 6 Months' },
   { value: 'year', label: 'This Year' },
   { value: 'lastYear', label: 'Last Year' },
+ 
+  // Removed incorrect line
+  // const { user } = useAuth();
   { value: 'custom', label: 'Custom Date Range' },
   { value: 'all', label: 'All Time' },
 ];
@@ -26,8 +29,15 @@ const PERIODS = [
 const ELEVATED = ['superadmin', 'hr', 'manager'];
 
 function DashboardPage() {
+
   const { user } = useAuth();
   const router = useRouter();
+  // For category breakdown filter
+  const [teams, setTeams] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [selectedTeam, setSelectedTeam] = useState('');
+  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [catSummary, setCatSummary] = useState({ incomeByCat: [], expenseByCat: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [summary, setSummary] = useState(null);
@@ -35,6 +45,28 @@ function DashboardPage() {
   const [period, setPeriod] = useState('month');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+
+  // Load teams and employees for filter
+  useEffect(() => {
+    if (ELEVATED.includes(user?.role)) {
+      teamsAPI.getAll().then(res => setTeams(res.data.data || []));
+      usersAPI.getAll({}).then(res => setEmployees(res.data.data || []));
+    }
+  }, [user]);
+
+  // Fetch category breakdown when team/employee changes
+  useEffect(() => {
+    if (!ELEVATED.includes(user?.role)) return;
+    const params = { period };
+    if (selectedTeam) params.team = selectedTeam;
+    if (selectedEmployee) params.employee = selectedEmployee;
+    dashboardAPI.getSummary(params).then(res => {
+      setCatSummary({
+        incomeByCat: res.data.data.incomeByCat || [],
+        expenseByCat: res.data.data.expenseByCat || [],
+      });
+    });
+  }, [selectedTeam, selectedEmployee, period]);
 
 
   // Restrict dashboard access to allowed roles only
@@ -161,8 +193,8 @@ function DashboardPage() {
         </div>
       ) : (
         <>
-          <DashboardStats summary={summary} role={user?.role} />
 
+          <DashboardStats summary={summary} role={user?.role} />
           {ELEVATED.includes(user?.role) && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <DashboardChart
@@ -182,6 +214,72 @@ function DashboardPage() {
             transactions={summary?.recentTransactions ?? []}
             title="Recent Transactions"
           />
+
+          {/* Category breakdown filter and table for elevated roles (moved below Recent Transactions) */}
+          {ELEVATED.includes(user?.role) && (
+            <div className="bg-white rounded-xl border p-6 mt-4">
+              <div className="flex flex-wrap gap-4 mb-4">
+                <div>
+                  <label className="text-sm text-gray-600 mr-2">Team:</label>
+                  <select
+                    className="border rounded px-3 py-1 text-sm"
+                    value={selectedTeam}
+                    onChange={e => {
+                      setSelectedTeam(e.target.value);
+                      setSelectedEmployee('');
+                    }}
+                  >
+                    <option value="">All Teams</option>
+                    {teams.map(team => (
+                      <option key={team._id} value={team._id}>{team.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600 mr-2">Employee:</label>
+                  <select
+                    className="border rounded px-3 py-1 text-sm"
+                    value={selectedEmployee}
+                    onChange={e => setSelectedEmployee(e.target.value)}
+                  >
+                    <option value="">All Employees</option>
+                    {(selectedTeam
+                      ? employees.filter(emp => {
+                          const teamObj = teams.find(t => t._id === selectedTeam);
+                          return teamObj && emp.department === teamObj.name;
+                        })
+                      : employees
+                    ).map(emp => (
+                      <option key={emp._id} value={emp._id}>{emp.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="text-gray-500 border-b">
+                      <th className="py-2 px-2 text-left font-medium">Category</th>
+                      <th className="py-2 px-2 text-left font-medium">Total Income</th>
+                      <th className="py-2 px-2 text-left font-medium">Total Expense</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...new Set([
+                      ...catSummary.incomeByCat.map(c => c._id),
+                      ...catSummary.expenseByCat.map(c => c._id)
+                    ])].map(cat => (
+                      <tr key={cat} className="border-b last:border-0">
+                        <td className="py-2 px-2 font-medium text-gray-700">{cat}</td>
+                        <td className="py-2 px-2 text-green-700">₹{(catSummary.incomeByCat.find(c => c._id === cat)?.total || 0).toLocaleString()}</td>
+                        <td className="py-2 px-2 text-red-700">₹{(catSummary.expenseByCat.find(c => c._id === cat)?.total || 0).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
