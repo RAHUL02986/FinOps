@@ -217,8 +217,8 @@ function DashboardPage() {
 
           {/* Category breakdown filter and table for elevated roles (moved below Recent Transactions) */}
           {ELEVATED.includes(user?.role) && (
-            <div className="bg-white rounded-xl border p-6 mt-4">
-              <div className="flex flex-wrap gap-4 mb-4">
+            <div className="bg-white rounded-xl border pt-5 mt-4">
+              <div className="flex flex-wrap gap-4 mb-4 px-5">
                 <div>
                   <label className="text-sm text-gray-600 mr-2">Team:</label>
                   <select
@@ -259,7 +259,7 @@ function DashboardPage() {
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="text-gray-500 border-b">
-                      <th className="py-2 px-2 text-left font-medium">Category</th>
+                      <th className="py-2 px-5 text-left font-medium">Category</th>
                       <th className="py-2 px-2 text-left font-medium">Total Income</th>
                       <th className="py-2 px-2 text-left font-medium">Total Expense</th>
                     </tr>
@@ -270,12 +270,24 @@ function DashboardPage() {
                       ...catSummary.expenseByCat.map(c => c._id)
                     ])].map(cat => (
                       <tr key={cat} className="border-b last:border-0">
-                        <td className="py-2 px-2 font-medium text-gray-700">{cat}</td>
-                        <td className="py-2 px-2 text-green-700">₹{(catSummary.incomeByCat.find(c => c._id === cat)?.total || 0).toLocaleString()}</td>
-                        <td className="py-2 px-2 text-red-700">₹{(catSummary.expenseByCat.find(c => c._id === cat)?.total || 0).toLocaleString()}</td>
+                        <td className="p-3 px-5  font-medium text-gray-700">{cat}</td>
+                        <td className="py-3  text-green-700">₹{(catSummary.incomeByCat.find(c => c._id === cat)?.total || 0).toLocaleString()}</td>
+                        <td className="py-3  text-red-700">₹{(catSummary.expenseByCat.find(c => c._id === cat)?.total || 0).toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
+                  {/* Total row */}
+                  <tfoot className='bg-[#FEF9C3] '>
+                    <tr className="border-t ">
+                      <td className="p-5 font-bold text-left">Total</td>
+                      <td className="py-5 font-bold text-green-700">
+                        ₹{catSummary.incomeByCat.reduce((sum, c) => sum + (c.total || 0), 0).toLocaleString()}
+                      </td>
+                      <td className="py-5 font-bold text-red-700">
+                        ₹{catSummary.expenseByCat.reduce((sum, c) => sum + (c.total || 0), 0).toLocaleString()}
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
