@@ -31,10 +31,19 @@ export default function DashboardStats({ summary, role }) {
         bgColor={netBalance >= 0 ? 'bg-green-100' : 'bg-red-100'}
         textColor={netColor}
         icon={
-          <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M7 11l5-5m0 0l5 5m-5-5v12" />
-          </svg>
+          netBalance >= 0 ? (
+            // Upward green arrow for profit
+            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M7 11l5-5m0 0l5 5m-5-5v12" />
+            </svg>
+          ) : (
+            // Downward red arrow for loss
+            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M17 13l-5 5m0 0l-5-5m5 5V6" />
+            </svg>
+          )
         }
       />
       {/* 2. Available Funds */}
