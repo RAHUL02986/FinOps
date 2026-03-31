@@ -14,7 +14,7 @@ router.use(protect);
 // GET /api/transactions
 router.get('/', async (req, res) => {
   try {
-    const { startDate, endDate, type, category, source, page = 1, limit = 10, userId, status } = req.query;
+    const { startDate, endDate, type, category, source, page = 1, limit = 10, userId, status, account } = req.query;
     const filter = {};
     if (isElevated(req.user.role)) {
       if (userId) filter.user = userId;
@@ -25,6 +25,7 @@ router.get('/', async (req, res) => {
     if (category) filter.category = category;
     if (source) filter.source = source;
     if (status) filter.status = status;
+    if (account) filter.account = account;
     if (startDate || endDate) {
       filter.date = {};
       if (startDate) filter.date.$gte = new Date(startDate);

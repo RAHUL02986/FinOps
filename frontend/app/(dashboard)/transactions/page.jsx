@@ -58,6 +58,8 @@ function TransactionRow({ txn, user, onAction }) {
 
 export default function TransactionsPage() {
   const { user } = useAuth();
+  const [accounts, setAccounts] = useState([]);
+  const [accountFilter, setAccountFilter] = useState('All');
   const [transactions, setTransactions] = useState([]);
   const [statusFilter, setStatusFilter] = useState("All");
   const [showModal, setShowModal] = useState(false);
@@ -68,9 +70,10 @@ export default function TransactionsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const PAGE_SIZE = 10;
 
-  async function fetchTransactions(pageNum = 1, status = statusFilter) {
+  async function fetchTransactions(pageNum = 1, status = statusFilter, account = accountFilter) {
     const params = { page: pageNum, limit: PAGE_SIZE };
     if (status !== 'All') params.status = status;
+    if (account !== 'All') params.account = account;
     const res = await transactionsAPI.getAll(params);
     setTransactions(res.data.data);
     setTotalPages(res.data.pages || 1);
@@ -78,12 +81,26 @@ export default function TransactionsPage() {
   }
 
   useEffect(() => {
-    fetchTransactions(page, statusFilter);
+    fetchTransactions(page, statusFilter, accountFilter);
     // eslint-disable-next-line
-  }, [page, statusFilter]);
+  }, [page, statusFilter, accountFilter]);
+
+  useEffect(() => {
+    // Fetch accounts for filter dropdown
+    async function fetchAccounts() {
+      const res = await accountsAPI.getAll();
+      setAccounts(res.data.data || []);
+    }
+    fetchAccounts();
+  }, []);
 
   const handleStatusChange = (e) => {
     setStatusFilter(e.target.value);
+    setPage(1);
+  };
+
+  const handleAccountChange = (e) => {
+    setAccountFilter(e.target.value);
     setPage(1);
   };
 
@@ -116,6 +133,12 @@ export default function TransactionsPage() {
       <div className="flex items-center gap-3 mb-4">
         <select value={statusFilter} onChange={handleStatusChange} className="border rounded px-3 py-2 text-sm">
           {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+        </select>
+        <select value={accountFilter} onChange={handleAccountChange} className="border rounded px-3 py-2 text-sm">
+          <option value="All">All Accounts</option>
+          {accounts.map(acc => (
+            <option key={acc._id} value={acc._id}>{acc.name}</option>
+          ))}
         </select>
         <button className="bg-blue-600 text-white px-4 py-2 rounded font-semibold" onClick={() => setShowModal(true)}>+ Add Transaction</button>
       </div>
