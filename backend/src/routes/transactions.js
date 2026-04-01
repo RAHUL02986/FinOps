@@ -89,17 +89,29 @@ router.post(
         status: status || undefined,
       });
 
-      // Update OD/CC account balance if applicable
+      // Update account balance for ALL account types
       const Account = require('../models/Account');
       if (txn.account) {
         const account = await Account.findById(txn.account);
-        if (account && account.type === 'od_cc') {
-          if (txn.type === 'expense') {
-            // Using OD/CC: decrease balance
-            account.currentBalance = Math.max(0, account.currentBalance - txn.amount);
-          } else if (txn.type === 'income') {
-            // Repayment: increase balance, but not above creditLimit
-            account.currentBalance = Math.min(account.creditLimit, account.currentBalance + txn.amount);
+        if (account) {
+          if (account.type === 'od_cc') {
+            // Handle OD/CC accounts
+            if (txn.type === 'expense') {
+              // Using OD/CC: decrease balance
+              account.currentBalance = Math.max(0, account.currentBalance - txn.amount);
+            } else if (txn.type === 'income') {
+              // Repayment: increase balance, but not above creditLimit
+              account.currentBalance = Math.min(account.creditLimit, account.currentBalance + txn.amount);
+            }
+          } else {
+            // Handle regular accounts (current, savings, cash, upi)
+            if (txn.type === 'expense') {
+              // Deduct expense from account balance
+              account.currentBalance -= txn.amount;
+            } else if (txn.type === 'income') {
+              // Add income to account balance
+              account.currentBalance += txn.amount;
+            }
           }
           await account.save();
         }
@@ -147,7 +159,63 @@ router.put('/:id', async (req, res) => {
     ) {
       return res.status(403).json({ success: false, message: 'Only admin can approve or reject transactions' });
     }
+
+    // Store old values before update
+    const oldAccount = txn.account;
+    const oldAmount = txn.amount;
+    const oldType = txn.type;
+
     const updated = await Transaction.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+
+    // Update account balances if amount, account, or type changed
+    const Account = require('../models/Account');
+    if (req.body.amount !== undefined || req.body.account !== undefined || req.body.type !== undefined) {
+      // Reverse the old transaction's effect on the old account
+      if (oldAccount) {
+        const oldAcc = await Account.findById(oldAccount);
+        if (oldAcc) {
+          if (oldAcc.type === 'od_cc') {
+            if (oldType === 'expense') {
+              // Reverse expense: add amount back
+              oldAcc.currentBalance = Math.min(oldAcc.creditLimit, oldAcc.currentBalance + oldAmount);
+            } else if (oldType === 'income') {
+              // Reverse income: subtract amount
+              oldAcc.currentBalance = Math.max(0, oldAcc.currentBalance - oldAmount);
+            }
+          } else {
+            if (oldType === 'expense') {
+              // Reverse expense: add amount back
+              oldAcc.currentBalance += oldAmount;
+            } else if (oldType === 'income') {
+              // Reverse income: subtract amount
+              oldAcc.currentBalance -= oldAmount;
+            }
+          }
+          await oldAcc.save();
+        }
+      }
+
+      // Apply the new transaction's effect on the new account
+      if (updated.account) {
+        const newAcc = await Account.findById(updated.account);
+        if (newAcc) {
+          if (newAcc.type === 'od_cc') {
+            if (updated.type === 'expense') {
+              newAcc.currentBalance = Math.max(0, newAcc.currentBalance - updated.amount);
+            } else if (updated.type === 'income') {
+              newAcc.currentBalance = Math.min(newAcc.creditLimit, newAcc.currentBalance + updated.amount);
+            }
+          } else {
+            if (updated.type === 'expense') {
+              newAcc.currentBalance -= updated.amount;
+            } else if (updated.type === 'income') {
+              newAcc.currentBalance += updated.amount;
+            }
+          }
+          await newAcc.save();
+        }
+      }
+    }
 
     // Notify user on approval/rejection
     if ('status' in req.body && (req.body.status === 'Approved' || req.body.status === 'Rejected')) {
@@ -177,17 +245,29 @@ router.delete('/:id', async (req, res) => {
     const txn = await Transaction.findByIdAndDelete(req.params.id);
     if (!txn) return res.status(404).json({ success: false, message: 'Transaction not found' });
 
-    // Reverse OD/CC account balance if applicable
+    // Reverse account balance for ALL account types
     if (txn.account) {
       const Account = require('../models/Account');
       const account = await Account.findById(txn.account);
-      if (account && account.type === 'od_cc') {
-        if (txn.type === 'expense') {
-          // Deleting an expense: add amount back
-          account.currentBalance = Math.min(account.creditLimit, account.currentBalance + txn.amount);
-        } else if (txn.type === 'income') {
-          // Deleting a repayment: subtract amount (not below zero)
-          account.currentBalance = Math.max(0, account.currentBalance - txn.amount);
+      if (account) {
+        if (account.type === 'od_cc') {
+          // Handle OD/CC accounts
+          if (txn.type === 'expense') {
+            // Deleting an expense: add amount back
+            account.currentBalance = Math.min(account.creditLimit, account.currentBalance + txn.amount);
+          } else if (txn.type === 'income') {
+            // Deleting a repayment: subtract amount (not below zero)
+            account.currentBalance = Math.max(0, account.currentBalance - txn.amount);
+          }
+        } else {
+          // Handle regular accounts (current, savings, cash, upi)
+          if (txn.type === 'expense') {
+            // Deleting an expense: add amount back
+            account.currentBalance += txn.amount;
+          } else if (txn.type === 'income') {
+            // Deleting an income: subtract amount
+            account.currentBalance -= txn.amount;
+          }
         }
         await account.save();
       }
