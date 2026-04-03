@@ -197,4 +197,14 @@ export const transactionsAPI = {
   remove: (id) => api.delete(`/transactions/${id}`),
 };
 
+// ── Leads ─────────────────────────────────────────────────────────────────────
+export const leadsAPI = {
+  getAll: (params) => api.get('/leads', { params }),
+  getById: (id) => api.get(`/leads/${id}`),
+  create: (data) => api.post('/leads', data),
+  update: (id, data) => api.put(`/leads/${id}`, data),
+  delete: (id) => api.delete(`/leads/${id}`),
+  getStats: () => api.get('/leads/stats/overview'),
+};
+
 export default api;

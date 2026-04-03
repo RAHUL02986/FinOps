@@ -17,19 +17,9 @@ connectDB();
 
 // Security & parsing middleware
 app.use(helmet());
-// Support multiple allowed origins for CORS
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',');
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps, curl, etc.)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      } else {
-        return callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     credentials: true,
   })
 );
@@ -71,6 +61,7 @@ app.use('/api/payroll', require('./routes/payroll'));
 app.use('/api/goals', require('./routes/goals'));
 app.use('/api/company', require('./routes/company'));
 app.use('/api/reports', require('./routes/reports'));
+app.use('/api/leads', require('./routes/leads'));
 
 // Health check
 app.get('/api/health', (_req, res) => {

@@ -4,9 +4,21 @@ const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 const { authorize } = require('../middleware/roleCheck');
 
-
 const router = express.Router();
 router.use(protect);
+
+// GET /api/users/bdm - fetch only BDM department users
+router.get('/bdm', async (req, res) => {
+  try {
+    const users = await User.find({
+      department: { $regex: /^\s*bdm\s*$/i },
+      isActive: true
+    }).select('-password');    
+    res.json({ success: true, data: users });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 // GET /api/users (open to all roles)
 router.get('/', authorize('superadmin', 'admin', 'hr', 'manager', 'dataentry'), async (req, res) => {
