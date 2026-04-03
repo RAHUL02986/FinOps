@@ -7,7 +7,7 @@ export const categoriesAPI = {
 };
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ;
 
 const api = axios.create({
   baseURL: API_URL,
@@ -188,7 +188,7 @@ export const reportsAPI = {
 };
 
 // File base URL (strip /api suffix)
-export const FILE_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
+export const FILE_BASE = (process.env.NEXT_PUBLIC_API_URL ).replace(/\/api$/, '');
 
 export const transactionsAPI = {
   getAll: (params) => api.get('/transactions', { params }),
