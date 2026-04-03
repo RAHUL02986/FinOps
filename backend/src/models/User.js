@@ -80,7 +80,7 @@ const UserSchema = new mongoose.Schema({
     },
     role: {
       type: String,
-      enum: ['employee', 'dataentry', 'hr', 'manager', 'admin', 'superadmin'],
+      enum: ['employee', 'dataentry', 'hr', 'manager', 'admin', 'superadmin', 'lead'],
       default: 'employee',
     },
     designation: {

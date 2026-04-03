@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
     { value: 'hr', label: 'HR' },
     { value: 'manager', label: 'Manager' },
     { value: 'dataentry', label: 'Data Entry' },
+    { value: 'lead', label: 'Lead' },
   ];
 
 

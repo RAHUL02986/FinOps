@@ -162,6 +162,7 @@ export default function UserForm({ user, onClose }) {
               <option value="hr">HR</option>
               <option value="manager">Manager</option>
               <option value="admin">Admin</option>
+              <option value="lead">Lead</option>
             </select>
           </div>
 
