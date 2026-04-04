@@ -22,6 +22,7 @@ router.get('/', async (req, res) => {
         allowedTypes.push('transaction_created', 'transaction_approved', 'transaction_rejected');
       }
       if (prefs.proposalNotifications) allowedTypes.push('proposal_notification');
+      if (prefs.leadNotifications) allowedTypes.push('lead_notification');
       if (allowedTypes.length > 0) {
         filter.type = { $in: allowedTypes };
       } else {

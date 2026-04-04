@@ -146,6 +146,8 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
                       link = '/expenses';
                     } else if (n.type === 'proposal_notification') {
                       link = '/proposals';
+                    } else if (n.type === 'lead_notification') {
+                      link = '/leads';
                     } else if (n.type === 'task_assigned' || n.type === 'task_updated' || n.type === 'status_changed' || n.type === 'comment_added') {
                       link = '/tasks';
                     }

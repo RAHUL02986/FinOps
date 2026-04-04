@@ -73,11 +73,27 @@ router.post(
     }
 
     try {
-      const { userId: targetUserId, ...rest } = req.body;
+      const { userId: targetUserId, account, amount, ...rest } = req.body;
+      if (!account) {
+        return res.status(400).json({ success: false, message: 'Account is required for expense' });
+      }
+      const Account = require('../models/Account');
+      const accountDoc = await Account.findById(account);
+      if (!accountDoc) {
+        return res.status(400).json({ success: false, message: 'Selected account not found' });
+      }
+      // Enforce minimum balance
+      const minBalance = typeof accountDoc.minimumBalance === 'number' ? accountDoc.minimumBalance : 0;
+      if ((accountDoc.currentBalance - amount) < minBalance) {
+        return res.status(400).json({ success: false, message: `Account balance cannot go below minimum balance (₹${minBalance})` });
+      }
       const owner = targetUserId ? targetUserId : req.user.id;
       // HR-created expenses are not approved
       const approved = req.user.role === 'hr' ? false : true;
-      const expense = await Expense.create({ ...rest, user: owner, approved });
+      const expense = await Expense.create({ ...rest, user: owner, account, amount, approved });
+      // Deduct amount from account
+      accountDoc.currentBalance -= amount;
+      await accountDoc.save();
       res.status(201).json({ success: true, data: expense });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });

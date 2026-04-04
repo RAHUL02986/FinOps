@@ -11,6 +11,7 @@ const accountSchema = new mongoose.Schema({
   accountNumber: { type: String, default: '' },
   currentBalance: { type: Number, default: 0 },
   openingBalance: { type: Number, default: 0 },
+  minimumBalance: { type: Number, default: 0 },
   currency: { type: String, default: 'INR' },
   isActive: { type: Boolean, default: true },
   creditLimit: { type: Number, default: 0 }, // for od_cc type

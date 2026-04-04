@@ -8,6 +8,14 @@ import { leadsAPI, teamsAPI, usersAPI } from '../../../lib/api';
 
 // Milestone and financials form for converted leads
 function ConvertedLeadDetails({ lead, onSave }) {
+    const handleSave = () => {
+      onSave({
+        milestones,
+        productValue,
+        platformFees,
+        finalValue
+      });
+    };
   const [milestones, setMilestones] = useState(lead.milestones || []);
   const [productValue, setProductValue] = useState(lead.productValue || 0);
   const [platformFees, setPlatformFees] = useState(lead.platformFees || 0);
@@ -18,15 +26,6 @@ function ConvertedLeadDetails({ lead, onSave }) {
   };
   const addMilestone = () => setMilestones([...milestones, { name: '', amount: 0, dueDate: '', status: 'Pending' }]);
   const removeMilestone = (idx) => setMilestones(milestones.filter((_, i) => i !== idx));
-
-  const handleSave = () => {
-    onSave({
-      milestones,
-      productValue,
-      platformFees,
-      finalValue
-    });
-  };
 
   return (
     <div className="bg-white p-4 rounded shadow mb-6">
@@ -141,14 +140,7 @@ export default function LeadsPage() {
     const fetchTeams = async () => {
       try {
         const res = await teamsAPI.getAll();
-        const data = res.data?.data || res.data || [];
-        // Only show BDM team
-        const bdmTeams = data.filter(team => team.name?.toLowerCase() === 'bdm');
-        setTeams(bdmTeams);
-        // Auto-select BDM team if only one
-        if (bdmTeams.length === 1) {
-          setFormData(prev => ({ ...prev, team: bdmTeams[0]._id }));
-        }
+        setTeams(res.data.data || []);
       } catch (e) {
         setTeams([]);
       }
@@ -197,6 +189,15 @@ export default function LeadsPage() {
       }
     } catch (error) {
       console.error('Error fetching leads:', error);
+                      {/* Button to open milestone/costing modal */}
+                      {detailLead && detailLead.leadStatus === 'Converted Lead' && (
+                        <button
+                          className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded"
+                          onClick={() => setShowMilestoneModal(true)}
+                        >
+                          Edit Milestones & Costing
+                        </button>
+                      )}
       toast.error('Failed to fetch leads');
     } finally {
       setLoading(false);
@@ -539,21 +540,7 @@ export default function LeadsPage() {
                       <div className="mb-2"><b>Employee:</b> {detailLead.employee?.name || 'N/A'}</div>
                       <div className="mb-2"><b>Notes:</b> {detailLead.notes || 'N/A'}</div>
                       <div className="mb-2"><b>Created:</b> {new Date(detailLead.createdAt).toLocaleString()}</div>
-                      {/* Only show milestone/financials form for converted leads */}
-                      {detailLead.leadStatus === 'Converted Lead' && (
-                        <ConvertedLeadDetails
-                          lead={detailLead}
-                          onSave={async (fields) => {
-                            try {
-                              await leadsAPI.update(detailLead._id, fields);
-                              toast.success('Milestones and values updated');
-                              fetchLeads();
-                            } catch (e) {
-                              toast.error('Failed to update lead');
-                            }
-                          }}
-                        />
-                      )}
+                      {/* Milestone/financials form removed as requested */}
                     </div>
                   </div>
                 )}

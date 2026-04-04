@@ -16,7 +16,8 @@ const NotificationSchema = new mongoose.Schema(
         'transaction_created',
         'transaction_approved',
         'transaction_rejected',
-        'proposal_notification'
+        'proposal_notification',
+        'lead_notification'
       ],
       default: 'task_assigned',
     },

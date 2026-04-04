@@ -24,8 +24,11 @@ router.get('/', protect, async (req, res) => {
       query.projectDescription = { $regex: search, $options: 'i' };
     }
 
+
     const leads = await Lead.find(query)
       .populate('createdBy', 'username email')
+      .populate('team', 'name')
+      .populate('employee', 'name email')
       .sort({ createdAt: -1 });
 
     res.json(leads);
@@ -38,8 +41,11 @@ router.get('/', protect, async (req, res) => {
 // Get a single lead by ID
 router.get('/:id', protect, async (req, res) => {
   try {
+
     const lead = await Lead.findById(req.params.id)
-      .populate('createdBy', 'username email');
+      .populate('createdBy', 'username email')
+      .populate('team', 'name')
+      .populate('employee', 'name email');
 
     if (!lead) {
       return res.status(404).json({ message: 'Lead not found' });
@@ -107,6 +113,23 @@ router.post('/', protect, upload.array('attachments', 5), async (req, res) => {
       .populate('team', 'name')
       .populate('employee', 'name email');
 
+    // Notify all admins about new lead
+    try {
+      const Notification = require('../models/Notification');
+      const User = require('../models/User');
+      const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+      for (const admin of admins) {
+        await Notification.create({
+          user: admin._id,
+          type: 'lead_notification',
+          title: 'New Lead Added',
+          message: `${req.user.name || 'A user'} added a new lead: ${populatedLead.projectDescription}`,
+        });
+      }
+    } catch (notifyErr) {
+      console.error('Failed to send lead notification:', notifyErr);
+    }
+
     res.status(201).json(populatedLead);
   } catch (error) {
     console.error('Error creating lead:', error);
@@ -163,11 +186,33 @@ router.put('/:id', protect, upload.array('attachments', 5), async (req, res) => 
       lead.attachments = [...(lead.attachments || []), ...newAttachments];
     }
 
+    // Track if lead was just converted
+    const wasConverted = lead.isModified && lead.isModified('leadStatus') && lead.leadStatus === 'Converted Lead';
+
     const updatedLead = await lead.save();
     const populatedLead = await Lead.findById(updatedLead._id)
       .populate('createdBy', 'username email')
       .populate('team', 'name')
       .populate('employee', 'name email');
+
+    // Notify all admins if lead was converted
+    if (wasConverted) {
+      try {
+        const Notification = require('../models/Notification');
+        const User = require('../models/User');
+        const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+        for (const admin of admins) {
+          await Notification.create({
+            user: admin._id,
+            type: 'lead_notification',
+            title: 'Lead Converted',
+            message: `${req.user.name || 'A user'} converted a lead: ${populatedLead.projectDescription}`,
+          });
+        }
+      } catch (notifyErr) {
+        console.error('Failed to send lead conversion notification:', notifyErr);
+      }
+    }
 
     res.json(populatedLead);
   } catch (error) {

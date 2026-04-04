@@ -12,7 +12,7 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ name: '', type: 'current', bankName: '', accountNumber: '', openingBalance: 0, currency: 'INR', creditLimit: 0, includeInAvailableFunds: true });
+  const [form, setForm] = useState({ name: '', type: 'current', bankName: '', accountNumber: '', openingBalance: 0, currency: 'INR', creditLimit: 0, includeInAvailableFunds: true, minimumBalance: 0 });
 
   useEffect(() => { load(); }, []);
   const load = async () => {
@@ -57,7 +57,8 @@ export default function AccountsPage() {
       openingBalance: a.openingBalance,
       currency: a.currency || 'INR',
       creditLimit: a.creditLimit || 0,
-      includeInAvailableFunds: typeof a.includeInAvailableFunds === 'boolean' ? a.includeInAvailableFunds : (a.type !== 'od_cc')
+      includeInAvailableFunds: typeof a.includeInAvailableFunds === 'boolean' ? a.includeInAvailableFunds : (a.type !== 'od_cc'),
+      minimumBalance: typeof a.minimumBalance === 'number' ? a.minimumBalance : 0
     });
     setEditingId(a._id); setShowForm(true);
   };
@@ -112,6 +113,7 @@ export default function AccountsPage() {
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Account Number</label><input type="text" value={form.accountNumber} onChange={e => setForm({ ...form, accountNumber: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Opening Balance</label><input type="number" value={form.openingBalance} onChange={e => setForm({ ...form, openingBalance: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Currency</label><input type="text" value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Minimum Balance</label><input type="number" value={form.minimumBalance} onChange={e => setForm({ ...form, minimumBalance: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="0" min="0" /></div>
             <div className="md:col-span-2 flex gap-3">
               <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">{editingId ? 'Update' : 'Create'}</button>
               <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="px-4 py-2 bg-gray-100 rounded-lg text-sm">Cancel</button>
