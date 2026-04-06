@@ -146,7 +146,8 @@ export default function LeadsPage() {
   const [newNote, setNewNote] = useState('');
   // For team/employee selection
   const [teams, setTeams] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const [bdmEmployees, setBdmEmployees] = useState([]); // Only BDM team employees for Lead Generator
+  const [employees, setEmployees] = useState([]); // All employees for Tags
   const [selectedTags, setSelectedTags] = useState([]);
   const [showTagDropdown, setShowTagDropdown] = useState(false);
   const tagDropdownRef = useRef(null);
@@ -227,6 +228,22 @@ export default function LeadsPage() {
       }
     };
     fetchEmployees();
+  }, []);
+
+  // Fetch only BDM team employees for Lead Generator dropdown
+  useEffect(() => {
+    const fetchBdmEmployees = async () => {
+      try {
+        const res = await api.get('/users/bdm');
+        const data = res.data?.data || [];
+        
+        setBdmEmployees(data);
+      } catch (e) {
+        console.error('Error fetching BDM employees:', e);
+        setBdmEmployees([]);
+      }
+    };
+    fetchBdmEmployees();
   }, []);
 
   const fetchLeads = useCallback(async () => {
@@ -1155,7 +1172,7 @@ export default function LeadsPage() {
                   disabled={editingLead ? true : false}
                 >
                   <option value="">Select employee</option>
-                  {employees.map((emp) => (
+                  {bdmEmployees.map((emp) => (
                     <option key={emp._id} value={emp._id}>{emp.name || emp.username || emp.email}</option>
                   ))}
                 </select>
