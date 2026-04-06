@@ -25,6 +25,10 @@ const ExpenseSchema = new mongoose.Schema(
       required: [true, 'Amount is required'],
       min: [0.01, 'Amount must be greater than 0'],
     },
+    account: {
+      type: mongoose.Schema.ObjectId,
+      ref: 'Account',
+    },
     category: {
       type: String,
       required: [true, 'Category is required'],

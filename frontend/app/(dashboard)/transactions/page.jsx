@@ -249,6 +249,8 @@ function TransactionModal({ onClose }) {
   const [teams, setTeams] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [balanceError, setBalanceError] = useState("");
 
   useEffect(() => {
     async function fetchDropdowns() {
@@ -273,8 +275,37 @@ function TransactionModal({ onClose }) {
     fetchDropdowns();
   }, [type]);
 
+  // Update selected account and validate balance
+  useEffect(() => {
+    if (account && accounts.length > 0) {
+      const acc = accounts.find(a => a._id === account);
+      setSelectedAccount(acc || null);
+    } else {
+      setSelectedAccount(null);
+    }
+  }, [account, accounts]);
+
+  // Validate balance when amount or account changes for expense
+  useEffect(() => {
+    if (type === 'Expense' && selectedAccount && amount > 0) {
+      const minBalance = typeof selectedAccount.minimumBalance === 'number' ? selectedAccount.minimumBalance : 0;
+      const newBalance = selectedAccount.currentBalance - amount;
+      if (newBalance < minBalance) {
+        setBalanceError(`Insufficient balance! Account balance (₹${selectedAccount.currentBalance.toLocaleString()}) cannot go below minimum balance (₹${minBalance.toLocaleString()})`);
+      } else {
+        setBalanceError("");
+      }
+    } else {
+      setBalanceError("");
+    }
+  }, [type, amount, selectedAccount]);
+
   async function handleSubmit(e) {
     e.preventDefault();
+    if (balanceError) {
+      alert(balanceError);
+      return;
+    }
     try {
       await transactionsAPI.create({
         type: type.toLowerCase(),
@@ -289,7 +320,7 @@ function TransactionModal({ onClose }) {
       onClose();
       window.location.reload(); // quick refresh for now
     } catch (err) {
-      alert('Failed to create transaction');
+      alert(err.response?.data?.message || 'Failed to create transaction');
     }
   }
 
@@ -322,6 +353,11 @@ function TransactionModal({ onClose }) {
           <div>
             <label className="block text-sm font-medium mb-1">Amount</label>
             <input type="number" value={amount} onChange={e => setAmount(Number(e.target.value))} className="input w-full" min="0" step="0.01" />
+            {balanceError && (
+              <div className="mt-2 p-2 bg-red-50 border border-red-200 text-red-700 rounded text-sm">
+                {balanceError}
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Account</label>
@@ -330,9 +366,14 @@ function TransactionModal({ onClose }) {
               {accounts
                 .filter(acc => acc.isActive !== false && (acc.type !== 'od_cc' || acc.includeInAvailableFunds))
                 .map(acc => (
-                  <option key={acc._id} value={acc._id}>{acc.name} ({acc.bankName})</option>
+                  <option key={acc._id} value={acc._id}>{acc.name} - Bal: ₹{acc.currentBalance.toLocaleString()}</option>
                 ))}
             </select>
+            {selectedAccount && (
+              <div className="mt-1 text-xs text-gray-600">
+                Current Balance: ₹{selectedAccount.currentBalance.toLocaleString()} | Minimum Balance: ₹{(selectedAccount.minimumBalance || 0).toLocaleString()}
+              </div>
+            )}
           </div>
           <div className="flex gap-3">
             <div className="flex-1">

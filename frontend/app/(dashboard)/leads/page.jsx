@@ -1,7 +1,7 @@
 
 'use client';
 import api from '../../../lib/api';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { leadsAPI, teamsAPI, usersAPI } from '../../../lib/api';
@@ -97,6 +97,27 @@ const TECH_STACKS = [
 
 const LEAD_STATUS_OPTIONS = ['Lead', 'Pending Lead', 'Converted Lead'];
 
+const TAG_OPTIONS = [
+  'Urgent',
+  'High Value',
+  'Repeat Client',
+  'New Client',
+  'Hot Lead',
+  'Cold Lead',
+  'Follow-up Required',
+  'Proposal Sent',
+  'Budget Approved',
+  'Decision Maker',
+  'Technical Discussion',
+  'Price Sensitive',
+  'Quick Turnaround',
+  'Long Term Project',
+  'Enterprise Client',
+  'Startup',
+  'Referral',
+  'VIP'
+];
+
 const STATUS_COLORS = {
   'Lead': 'bg-blue-100 text-blue-800',
   'Pending Lead': 'bg-yellow-100 text-yellow-800',
@@ -115,12 +136,20 @@ export default function LeadsPage() {
   const [editingLead, setEditingLead] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSource, setFilterSource] = useState('');
+  const [filterPriority, setFilterPriority] = useState('');
   // For inline status editing
   const [statusEditId, setStatusEditId] = useState(null);
   const [statusEditValue, setStatusEditValue] = useState('');
+  // For comments and activities
+  const [newComment, setNewComment] = useState('');
+  const [newActivity, setNewActivity] = useState({ type: 'call', description: '' });
+  const [newNote, setNewNote] = useState('');
   // For team/employee selection
   const [teams, setTeams] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const tagDropdownRef = useRef(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -131,38 +160,74 @@ export default function LeadsPage() {
     notes: '',
     team: '',
     employee: '',
+    clientName: '',
+    clientEmail: '',
+    clientPhone: '',
+    company: '',
+    priority: 'Medium',
+    expectedValue: 0,
+    followUpDate: '',
+    tags: ''
   });
   // File upload state
   const [attachments, setAttachments] = useState([]); // for files (images, pdfs)
   const [attachmentLinks, setAttachmentLinks] = useState(['']); // for links
-  // Fetch only BDM team on mount
+  // Fetch only BDM team on mount and auto-select it
   useEffect(() => {
     const fetchTeams = async () => {
       try {
         const res = await teamsAPI.getAll();
-        setTeams(res.data.data || []);
+        const allTeams = res.data.data || [];
+        // Filter to only show BDM team
+        const bdmTeam = allTeams.find(team => team.name === 'BDM');
+        if (bdmTeam) {
+          setTeams([bdmTeam]);
+          // Auto-select BDM team if not editing
+          if (!editingLead) {
+            setFormData(prev => ({ ...prev, team: bdmTeam._id }));
+          }
+        } else {
+          setTeams([]);
+        }
       } catch (e) {
         setTeams([]);
       }
     };
     fetchTeams();
-  }, []);
+  }, [editingLead]);
 
-  // Fetch only BDM department users for employee dropdown
+  // Close tag dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(event.target)) {
+        setShowTagDropdown(false);
+      }
+    };
+
+    if (showTagDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showTagDropdown]);
+
+  // Fetch all users for employee dropdown and tags
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
-        const res = await api.get('/users/bdm');
-        const data = res.data?.data || [];
+        const res = await api.get('/users');
+        const data = res.data?.data || res.data?.users || [];
         
         setEmployees(data);
       } catch (e) {
-        console.error('Error fetching BDM employees:', e); // Debug log
+        console.error('Error fetching employees:', e);
         setEmployees([]);
       }
     };
     fetchEmployees();
-  }, [formData.team]);
+  }, []);
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -233,8 +298,20 @@ export default function LeadsPage() {
     try {
       const data = new FormData();
       Object.entries(formData).forEach(([key, value]) => {
+        // Skip team and employee if they're empty strings
+        if ((key === 'team' || key === 'employee') && !value) {
+          return;
+        }
+        // Skip tags field as we'll use selectedTags instead
+        if (key === 'tags') {
+          return;
+        }
         data.append(key, value);
       });
+      // Append selected tags
+      if (selectedTags.length > 0) {
+        data.append('tags', selectedTags.join(', '));
+      }
       // Attach files
       for (let i = 0; i < attachments.length; i++) {
         if (attachments[i]) data.append('attachments', attachments[i]);
@@ -265,7 +342,16 @@ export default function LeadsPage() {
         notes: '',
         team: '',
         employee: '',
+        clientName: '',
+        clientEmail: '',
+        clientPhone: '',
+        company: '',
+        priority: 'Medium',
+        expectedValue: 0,
+        followUpDate: '',
+        tags: ''
       });
+      setSelectedTags([]);
       setAttachments([]);
       setAttachmentLinks(['']);
       setShowForm(false);
@@ -284,8 +370,19 @@ export default function LeadsPage() {
       projectDescription: lead.projectDescription,
       technologyStack: lead.technologyStack,
       leadStatus: lead.leadStatus,
-      notes: lead.notes || ''
+      notes: (lead.notes && lead.notes.length > 0) ? lead.notes[lead.notes.length - 1].content : '',
+      team: lead.team?._id || '',
+      employee: lead.employee?._id || '',
+      clientName: lead.clientName || '',
+      clientEmail: lead.clientEmail || '',
+      clientPhone: lead.clientPhone || '',
+      company: lead.company || '',
+      priority: lead.priority || 'Medium',
+      expectedValue: lead.expectedValue || 0,
+      followUpDate: lead.followUpDate ? lead.followUpDate.slice(0, 10) : '',
+      tags: lead.tags ? lead.tags.join(', ') : ''
     });
+    setSelectedTags(lead.tags || []);
     setShowForm(true);
   };
 
@@ -305,12 +402,23 @@ export default function LeadsPage() {
   const cancelForm = () => {
     setShowForm(false);
     setEditingLead(null);
+    setSelectedTags([]);
     setFormData({
       leadSource: '',
       projectDescription: '',
       technologyStack: '',
       leadStatus: 'Lead',
-      notes: ''
+      notes: '',
+      team: '',
+      employee: '',
+      clientName: '',
+      clientEmail: '',
+      clientPhone: '',
+      company: '',
+      priority: 'Medium',
+      expectedValue: 0,
+      followUpDate: '',
+      tags: ''
     });
   };
 
@@ -334,25 +442,82 @@ export default function LeadsPage() {
     }
   };
 
+  // Handle adding note
+  const handleAddNote = async (leadId) => {
+    if (!newNote.trim()) {
+      toast.error('Please enter a note');
+      return;
+    }
+    
+    try {
+      const response = await api.post(`/leads/${leadId}/notes`, { content: newNote });
+      setDetailLead(response.data);
+      setNewNote('');
+      toast.success('Note added');
+      fetchLeads();
+    } catch (error) {
+      toast.error('Failed to add note');
+    }
+  };
+
+  // Handle adding comment
+  const handleAddComment = async (leadId) => {
+    if (!newComment.trim()) {
+      toast.error('Please enter a comment');
+      return;
+    }
+    
+    try {
+      const response = await api.post(`/leads/${leadId}/comments`, { content: newComment });
+      setDetailLead(response.data);
+      setNewComment('');
+      toast.success('Comment added');
+      fetchLeads();
+    } catch (error) {
+      toast.error('Failed to add comment');
+    }
+  };
+
+  // Handle adding activity
+  const handleAddActivity = async (leadId) => {
+    if (!newActivity.description.trim()) {
+      toast.error('Please enter activity description');
+      return;
+    }
+    
+    try {
+      const response = await api.post(`/leads/${leadId}/activities`, newActivity);
+      setDetailLead(response.data);
+      setNewActivity({ type: 'call', description: '' });
+      toast.success('Activity logged');
+      fetchLeads();
+    } catch (error) {
+      toast.error('Failed to add activity');
+    }
+  };
+
   const renderLeadsTable = (leadsData) => (
     <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Lead Source
+              Client/Company
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Project Description
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Technology Stack
+              Priority
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Expected Value
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Status
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Created
+              Follow-up
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Actions
@@ -362,23 +527,34 @@ export default function LeadsPage() {
         <tbody className="bg-white divide-y divide-gray-200">
           {leadsData.length === 0 ? (
             <tr>
-              <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+              <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                 No leads found
               </td>
             </tr>
           ) : (
             leadsData.map((lead) => (
               <tr key={lead._id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">{lead.leadSource}</div>
+                <td className="px-6 py-4">
+                  <div className="text-sm font-medium text-gray-900">{lead.clientName || 'N/A'}</div>
+                  <div className="text-sm text-gray-500">{lead.company || lead.leadSource}</div>
                 </td>
                 <td className="px-6 py-4">
                   <div className="text-sm text-gray-900 max-w-xs truncate" title={lead.projectDescription}>
                     {lead.projectDescription}
                   </div>
+                  <div className="text-xs text-gray-500">{lead.technologyStack}</div>
                 </td>
-                <td className="px-6 py-4">
-                  <div className="text-sm text-gray-900">{lead.technologyStack}</div>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                    lead.priority === 'High' ? 'bg-red-100 text-red-800' :
+                    lead.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-green-100 text-green-800'
+                  }`}>
+                    {lead.priority}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  ${lead.expectedValue ? lead.expectedValue.toLocaleString() : '0'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   {statusEditId === lead._id ? (
@@ -406,21 +582,20 @@ export default function LeadsPage() {
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {new Date(lead.createdAt).toLocaleDateString()}
+                  {lead.followUpDate ? new Date(lead.followUpDate).toLocaleDateString() : '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  {lead.leadStatus === 'Converted Lead' ? (
-                    <button
-                      className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-                      onClick={() => setDetailLead(lead)}
-                    >
-                      See Details
-                    </button>
-                  ) : (
+                  <button
+                    onClick={() => setDetailLead(lead)}
+                    className="text-indigo-600 hover:text-indigo-900 mr-3"
+                  >
+                    View
+                  </button>
+                  {lead.leadStatus !== 'Converted Lead' && (
                     <>
                       <button
                         onClick={() => handleEdit(lead)}
-                        className="text-indigo-600 hover:text-indigo-900 mr-4"
+                        className="text-blue-600 hover:text-blue-900 mr-3"
                       >
                         Edit
                       </button>
@@ -478,13 +653,13 @@ export default function LeadsPage() {
 
       {/* Filters and Add Button */}
       <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
-        <div className="flex gap-4 flex-1">
+        <div className="flex gap-4 flex-1 flex-wrap">
           <input
             type="text"
-            placeholder="Search project description..."
+            placeholder="Search by client, company, project..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent min-w-[250px]"
           />
           <select
             value={filterSource}
@@ -496,10 +671,21 @@ export default function LeadsPage() {
               <option key={source} value={source}>{source}</option>
             ))}
           </select>
+          <select
+            value={filterPriority}
+            onChange={(e) => setFilterPriority(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          >
+            <option value="">All Priorities</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </select>
           <button
             onClick={() => {
               setSearchTerm('');
               setFilterSource('');
+              setFilterPriority('');
             }}
             className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
           >
@@ -519,37 +705,202 @@ export default function LeadsPage() {
           <div>
             {convertedLeads.length === 0 ? (
               <div className="text-gray-500">No converted leads yet.</div>
-            ) : (
-              <>
-                {/* Details Modal/Section */}
-                {detailLead && (
-                  <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full relative">
-                      <button
-                        className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-2xl"
-                        onClick={() => setDetailLead(null)}
-                      >
-                        &times;
-                      </button>
-                      <h2 className="text-2xl font-bold mb-4">Lead Details</h2>
-                      <div className="mb-2"><b>Project:</b> {detailLead.projectDescription}</div>
-                      <div className="mb-2"><b>Source:</b> {detailLead.leadSource}</div>
-                      <div className="mb-2"><b>Technology:</b> {detailLead.technologyStack}</div>
-                      <div className="mb-2"><b>Status:</b> {detailLead.leadStatus}</div>
-                      <div className="mb-2"><b>Team:</b> {detailLead.team?.name || 'N/A'}</div>
-                      <div className="mb-2"><b>Employee:</b> {detailLead.employee?.name || 'N/A'}</div>
-                      <div className="mb-2"><b>Notes:</b> {detailLead.notes || 'N/A'}</div>
-                      <div className="mb-2"><b>Created:</b> {new Date(detailLead.createdAt).toLocaleString()}</div>
-                      {/* Milestone/financials form removed as requested */}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+            ) : null}
           </div>
         )}
      
       </div>
+
+      {/* Lead Detail Modal - Available for all leads */}
+      {detailLead && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-5xl w-full relative my-8 max-h-[90vh] overflow-y-auto">
+            <button
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl"
+              onClick={() => setDetailLead(null)}
+            >
+              &times;
+            </button>
+            
+            <h2 className="text-2xl font-bold mb-6">Lead Details</h2>
+            
+            {/* Contact & Basic Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-lg mb-3 text-gray-700">Contact Information</h3>
+                <div className="space-y-2">
+                  <div><b>Client:</b> {detailLead.clientName || 'N/A'}</div>
+                  <div><b>Email:</b> {detailLead.clientEmail || 'N/A'}</div>
+                  <div><b>Phone:</b> {detailLead.clientPhone || 'N/A'}</div>
+                  <div><b>Company:</b> {detailLead.company || 'N/A'}</div>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-lg mb-3 text-gray-700">Lead Information</h3>
+                <div className="space-y-2">
+                  <div><b>Priority:</b> <span className={`px-2 py-1 rounded text-sm ${
+                    detailLead.priority === 'High' ? 'bg-red-100 text-red-800' :
+                    detailLead.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-green-100 text-green-800'
+                  }`}>{detailLead.priority}</span></div>
+                  <div><b>Expected Value:</b> ${detailLead.expectedValue?.toLocaleString() || '0'}</div>
+                  <div><b>Follow-up Date:</b> {detailLead.followUpDate ? new Date(detailLead.followUpDate).toLocaleDateString() : 'N/A'}</div>
+                  <div><b>Status:</b> <span className={`px-2 py-1 rounded text-sm ${STATUS_COLORS[detailLead.leadStatus]}`}>{detailLead.leadStatus}</span></div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Project Details */}
+            <div className="bg-gray-50 p-4 rounded-lg mb-6">
+              <h3 className="font-semibold text-lg mb-3 text-gray-700">Project Details</h3>
+              <div className="space-y-2">
+                <div><b>Source:</b> {detailLead.leadSource}</div>
+                <div><b>Technology:</b> {detailLead.technologyStack}</div>
+                <div><b>Team:</b> {detailLead.team?.name || 'N/A'}</div>
+                <div><b>Employee:</b> {detailLead.employee?.name || 'N/A'}</div>
+                <div><b>Description:</b> <p className="mt-1 text-gray-700">{detailLead.projectDescription}</p></div>
+                {detailLead.tags && detailLead.tags.length > 0 && (
+                  <div><b>Tags:</b> {detailLead.tags.map((tag, idx) => (
+                    <span key={idx} className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2 mt-1">{tag}</span>
+                  ))}</div>
+                )}
+              </div>
+            </div>
+            
+            {/* Notes History */}
+            <div className="bg-gray-50 p-4 rounded-lg mb-6">
+              <h3 className="font-semibold text-lg mb-3 text-gray-700">Notes History</h3>
+              <div className="space-y-3 max-h-60 overflow-y-auto mb-4">
+                {detailLead.notes && detailLead.notes.length > 0 ? (
+                  detailLead.notes.map((note, idx) => (
+                    <div key={idx} className="bg-white p-3 rounded border">
+                      <p className="text-gray-800">{note.content}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        By {note.addedBy?.name || note.addedBy?.username || 'Unknown'} on {new Date(note.addedAt).toLocaleString()}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500">No notes yet</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <textarea
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  placeholder="Add a note..."
+                  className="flex-1 px-3 py-2 border rounded-lg"
+                  rows="2"
+                />
+                <button
+                  onClick={() => handleAddNote(detailLead._id)}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                >
+                  Add Note
+                </button>
+              </div>
+            </div>
+            
+            {/* Activity Log */}
+            <div className="bg-gray-50 p-4 rounded-lg mb-6">
+              <h3 className="font-semibold text-lg mb-3 text-gray-700">Activity Log</h3>
+              <div className="space-y-3 max-h-60 overflow-y-auto mb-4">
+                {detailLead.activityLog && detailLead.activityLog.length > 0 ? (
+                  detailLead.activityLog.map((activity, idx) => (
+                    <div key={idx} className="bg-white p-3 rounded border">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs uppercase">{activity.type}</span>
+                        <p className="text-gray-800">{activity.description}</p>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        By {activity.performedBy?.name || activity.performedBy?.username || 'Unknown'} on {new Date(activity.performedAt).toLocaleString()}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500">No activities logged</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value={newActivity.type}
+                  onChange={(e) => setNewActivity({ ...newActivity, type: e.target.value })}
+                  className="px-3 py-2 border rounded-lg"
+                >
+                  <option value="call">Call</option>
+                  <option value="email">Email</option>
+                  <option value="meeting">Meeting</option>
+                  <option value="note">Note</option>
+                  <option value="other">Other</option>
+                </select>
+                <input
+                  type="text"
+                  value={newActivity.description}
+                  onChange={(e) => setNewActivity({ ...newActivity, description: e.target.value })}
+                  placeholder="Activity description..."
+                  className="flex-1 px-3 py-2 border rounded-lg"
+                />
+                <button
+                  onClick={() => handleAddActivity(detailLead._id)}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                >
+                  Log Activity
+                </button>
+              </div>
+            </div>
+            
+            {/* Comments/Discussion */}
+            <div className="bg-gray-50 p-4 rounded-lg mb-6">
+              <h3 className="font-semibold text-lg mb-3 text-gray-700">Comments & Discussion</h3>
+              <div className="space-y-3 max-h-60 overflow-y-auto mb-4">
+                {detailLead.comments && detailLead.comments.length > 0 ? (
+                  detailLead.comments.map((comment, idx) => (
+                    <div key={idx} className="bg-white p-3 rounded border">
+                      <p className="text-gray-800">{comment.content}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        By {comment.commentedBy?.name || comment.commentedBy?.username || 'Unknown'} on {new Date(comment.commentedAt).toLocaleString()}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500">No comments yet</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Add a comment..."
+                  className="flex-1 px-3 py-2 border rounded-lg"
+                  rows="2"
+                />
+                <button
+                  onClick={() => handleAddComment(detailLead._id)}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                >
+                  Comment
+                </button>
+              </div>
+            </div>
+            
+            {/* Status History */}
+            {detailLead.statusHistory && detailLead.statusHistory.length > 0 && (
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-lg mb-3 text-gray-700">Status Change History</h3>
+                <div className="space-y-2">
+                  {detailLead.statusHistory.map((history, idx) => (
+                    <div key={idx} className="flex justify-between text-sm">
+                      <span className={`px-2 py-1 rounded ${STATUS_COLORS[history.status]}`}>{history.status}</span>
+                      <span className="text-gray-600">{new Date(history.changedAt).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Form */}
       {showForm && (
@@ -558,6 +909,186 @@ export default function LeadsPage() {
             {editingLead ? 'Edit Lead' : 'Add New Lead'}
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4" encType="multipart/form-data">
+            {/* Contact Information Section */}
+            <div className="border-b pb-4 mb-4">
+              <h3 className="text-lg font-semibold text-gray-700 mb-3">Contact Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Client Name
+                  </label>
+                  <input
+                    type="text"
+                    name="clientName"
+                    value={formData.clientName}
+                    onChange={handleInputChange}
+                    placeholder="Enter client name"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Client Email
+                  </label>
+                  <input
+                    type="email"
+                    name="clientEmail"
+                    value={formData.clientEmail}
+                    onChange={handleInputChange}
+                    placeholder="client@example.com"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Client Phone
+                  </label>
+                  <input
+                    type="tel"
+                    name="clientPhone"
+                    value={formData.clientPhone}
+                    onChange={handleInputChange}
+                    placeholder="+1 234 567 8900"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Company
+                  </label>
+                  <input
+                    type="text"
+                    name="company"
+                    value={formData.company}
+                    onChange={handleInputChange}
+                    placeholder="Company name"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Lead Details Section */}
+            <div className="border-b pb-4 mb-4">
+              <h3 className="text-lg font-semibold text-gray-700 mb-3">Lead Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Priority
+                  </label>
+                  <select
+                    name="priority"
+                    value={formData.priority}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Expected Value ($)
+                  </label>
+                  <input
+                    type="number"
+                    name="expectedValue"
+                    value={formData.expectedValue}
+                    onChange={handleInputChange}
+                    min="0"
+                    placeholder="0"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Follow-up Date
+                  </label>
+                  <input
+                    type="date"
+                    name="followUpDate"
+                    value={formData.followUpDate}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tags
+                  </label>
+                  <div className="relative" ref={tagDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowTagDropdown(!showTagDropdown)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-left bg-white flex justify-between items-center"
+                    >
+                      <span className="text-gray-700">
+                        {selectedTags.length > 0 ? `${selectedTags.length} employee(s) selected` : 'Select employees'}
+                      </span>
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    
+                    {showTagDropdown && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {employees.map((emp) => {
+                          const empName = emp.name || emp.username || emp.email;
+                          return (
+                            <label
+                              key={emp._id}
+                              className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedTags.includes(empName)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedTags([...selectedTags, empName]);
+                                  } else {
+                                    setSelectedTags(selectedTags.filter(t => t !== empName));
+                                  }
+                                }}
+                                className="mr-3 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                              />
+                              <span className="text-sm text-gray-700">{empName}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  {selectedTags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedTags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                        >
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTags(selectedTags.filter(t => t !== tag))}
+                            className="ml-2 text-blue-600 hover:text-blue-800"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Project Information Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -603,10 +1134,9 @@ export default function LeadsPage() {
                   name="team"
                   value={formData.team}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  disabled
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50"
+                  disabled={editingLead ? true : false}
                 >
-                  <option value="">Select team</option>
                   {teams.map((team) => (
                     <option key={team._id} value={team._id}>{team.name}</option>
                   ))}
@@ -622,6 +1152,7 @@ export default function LeadsPage() {
                   value={formData.employee}
                   onChange={handleInputChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  disabled={editingLead ? true : false}
                 >
                   <option value="">Select employee</option>
                   {employees.map((emp) => (

@@ -1,6 +1,29 @@
 const mongoose = require('mongoose');
 
 const leadSchema = new mongoose.Schema({
+    // Contact Information
+    clientName: {
+      type: String,
+      trim: true,
+      maxlength: [100, 'Client name cannot exceed 100 characters']
+    },
+    clientEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email address']
+    },
+    clientPhone: {
+      type: String,
+      trim: true,
+      maxlength: [20, 'Phone number cannot exceed 20 characters']
+    },
+    company: {
+      type: String,
+      trim: true,
+      maxlength: [200, 'Company name cannot exceed 200 characters']
+    },
+    
     // Milestones for converted leads
     milestones: [
       {
@@ -14,6 +37,32 @@ const leadSchema = new mongoose.Schema({
     productValue: { type: Number, default: 0 },
     platformFees: { type: Number, default: 0 },
     finalValue: { type: Number, default: 0 },
+    
+    // Lead Priority
+    priority: {
+      type: String,
+      enum: ['Low', 'Medium', 'High'],
+      default: 'Medium'
+    },
+    
+    // Expected Value
+    expectedValue: {
+      type: Number,
+      default: 0,
+      min: [0, 'Expected value cannot be negative']
+    },
+    
+    // Follow-up Date
+    followUpDate: {
+      type: Date
+    },
+    
+    // Tags for categorization
+    tags: [{
+      type: String,
+      trim: true
+    }],
+    
   leadSource: {
     type: String,
     required: [true, 'Lead source is required'],
@@ -93,20 +142,104 @@ const leadSchema = new mongoose.Schema({
       uploadedAt: { type: Date, default: Date.now }
     }
   ],
-  notes: {
-    type: String,
-    trim: true,
-    maxlength: [1000, 'Notes cannot exceed 1000 characters']
-  }
+  
+  // Notes History (instead of single note)
+  notes: [{
+    content: {
+      type: String,
+      trim: true,
+      maxlength: [1000, 'Note cannot exceed 1000 characters']
+    },
+    addedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    addedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  
+  // Activity Log
+  activityLog: [{
+    type: {
+      type: String,
+      enum: ['call', 'email', 'meeting', 'note', 'other'],
+      required: true
+    },
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: [500, 'Activity description cannot exceed 500 characters']
+    },
+    performedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    performedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  
+  // Comments/Discussion
+  comments: [{
+    content: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: [1000, 'Comment cannot exceed 1000 characters']
+    },
+    commentedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    commentedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  
+  // Status Change History
+  statusHistory: [{
+    status: {
+      type: String,
+      required: true
+    },
+    changedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    changedAt: {
+      type: Date,
+      default: Date.now
+    },
+    reason: {
+      type: String,
+      trim: true
+    }
+  }]
 }, {
   timestamps: true
 });
 
-// Middleware to set convertedAt date when status changes to 'Converted Lead'
+// Middleware to track status changes
 leadSchema.pre('save', function(next) {
+  // Set convertedAt date when status changes to 'Converted Lead'
   if (this.isModified('leadStatus') && this.leadStatus === 'Converted Lead' && !this.convertedAt) {
     this.convertedAt = new Date();
   }
+  
+  // Track status history
+  if (this.isModified('leadStatus')) {
+    this.statusHistory.push({
+      status: this.leadStatus,
+      changedAt: new Date()
+    });
+  }
+  
   next();
 });
 

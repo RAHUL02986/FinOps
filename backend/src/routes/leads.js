@@ -6,7 +6,7 @@ const { protect } = require('../middleware/auth');
 // Get all leads (with optional filtering)
 router.get('/', protect, async (req, res) => {
   try {
-    const { status, source, search } = req.query;
+    const { status, source, search, priority, tag } = req.query;
     let query = {};
 
     // Filter by status if provided
@@ -19,16 +19,33 @@ router.get('/', protect, async (req, res) => {
       query.leadSource = source;
     }
 
-    // Search in project description if provided
-    if (search) {
-      query.projectDescription = { $regex: search, $options: 'i' };
+    // Filter by priority if provided
+    if (priority) {
+      query.priority = priority;
     }
 
+    // Filter by tag if provided
+    if (tag) {
+      query.tags = tag;
+    }
+
+    // Enhanced search - search in multiple fields
+    if (search) {
+      query.$or = [
+        { projectDescription: { $regex: search, $options: 'i' } },
+        { clientName: { $regex: search, $options: 'i' } },
+        { clientEmail: { $regex: search, $options: 'i' } },
+        { company: { $regex: search, $options: 'i' } }
+      ];
+    }
 
     const leads = await Lead.find(query)
-      .populate('createdBy', 'username email')
+      .populate('createdBy', 'username email name')
       .populate('team', 'name')
       .populate('employee', 'name email')
+      .populate('notes.addedBy', 'username email name')
+      .populate('comments.commentedBy', 'username email name')
+      .populate('activityLog.performedBy', 'username email name')
       .sort({ createdAt: -1 });
 
     res.json(leads);
@@ -41,11 +58,14 @@ router.get('/', protect, async (req, res) => {
 // Get a single lead by ID
 router.get('/:id', protect, async (req, res) => {
   try {
-
     const lead = await Lead.findById(req.params.id)
-      .populate('createdBy', 'username email')
+      .populate('createdBy', 'username email name')
       .populate('team', 'name')
-      .populate('employee', 'name email');
+      .populate('employee', 'name email')
+      .populate('notes.addedBy', 'username email name')
+      .populate('comments.commentedBy', 'username email name')
+      .populate('activityLog.performedBy', 'username email name')
+      .populate('statusHistory.changedBy', 'username email name');
 
     if (!lead) {
       return res.status(404).json({ message: 'Lead not found' });
@@ -70,7 +90,10 @@ const upload = multer({
 
 router.post('/', protect, upload.array('attachments', 5), async (req, res) => {
   try {
-    const { leadSource, projectDescription, technologyStack, leadStatus, notes, team, employee } = req.body;
+    const { 
+      leadSource, projectDescription, technologyStack, leadStatus, notes, team, employee,
+      clientName, clientEmail, clientPhone, company, priority, expectedValue, followUpDate, tags
+    } = req.body;
 
     // Validation
     if (!leadSource || !projectDescription || !technologyStack) {
@@ -95,16 +118,34 @@ router.post('/', protect, upload.array('attachments', 5), async (req, res) => {
       });
     }
 
+    // Prepare notes array if note content provided
+    let notesArray = [];
+    if (notes && notes.trim()) {
+      notesArray = [{
+        content: notes,
+        addedBy: req.user.id,
+        addedAt: new Date()
+      }];
+    }
+
     const newLead = new Lead({
       leadSource,
       projectDescription,
       technologyStack,
       leadStatus: leadStatus || 'Lead',
-      notes,
+      notes: notesArray,
       createdBy: req.user.id,
       team: team || undefined,
       employee: employee || undefined,
       attachments,
+      clientName: clientName || undefined,
+      clientEmail: clientEmail || undefined,
+      clientPhone: clientPhone || undefined,
+      company: company || undefined,
+      priority: priority || 'Medium',
+      expectedValue: expectedValue || 0,
+      followUpDate: followUpDate || undefined,
+      tags: tags ? (Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim())) : []
     });
 
     const savedLead = await newLead.save();
@@ -143,7 +184,11 @@ router.post('/', protect, upload.array('attachments', 5), async (req, res) => {
 // Update a lead
 router.put('/:id', protect, upload.array('attachments', 5), async (req, res) => {
   try {
-    const { leadSource, projectDescription, technologyStack, leadStatus, notes, team, employee, milestones, productValue, platformFees, finalValue } = req.body;
+    const { 
+      leadSource, projectDescription, technologyStack, leadStatus, notes, team, employee, 
+      milestones, productValue, platformFees, finalValue,
+      clientName, clientEmail, clientPhone, company, priority, expectedValue, followUpDate, tags
+    } = req.body;
 
     const lead = await Lead.findById(req.params.id);
 
@@ -151,16 +196,27 @@ router.put('/:id', protect, upload.array('attachments', 5), async (req, res) => 
       return res.status(404).json({ message: 'Lead not found' });
     }
 
-    // Update fields
+    // Update basic fields
     if (leadSource !== undefined) lead.leadSource = leadSource;
     if (projectDescription !== undefined) lead.projectDescription = projectDescription;
     if (technologyStack !== undefined) lead.technologyStack = technologyStack;
     if (leadStatus !== undefined) lead.leadStatus = leadStatus;
-    if (notes !== undefined) lead.notes = notes;
     if (team !== undefined) lead.team = team;
     if (employee !== undefined) lead.employee = employee;
 
-    // New: Update milestones and financials for converted leads
+    // Update contact info
+    if (clientName !== undefined) lead.clientName = clientName;
+    if (clientEmail !== undefined) lead.clientEmail = clientEmail;
+    if (clientPhone !== undefined) lead.clientPhone = clientPhone;
+    if (company !== undefined) lead.company = company;
+    
+    // Update lead details
+    if (priority !== undefined) lead.priority = priority;
+    if (expectedValue !== undefined) lead.expectedValue = expectedValue;
+    if (followUpDate !== undefined) lead.followUpDate = followUpDate;
+    if (tags !== undefined) lead.tags = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim());
+
+    // Update milestones and financials for converted leads
     if (milestones !== undefined) lead.milestones = milestones;
     if (productValue !== undefined) lead.productValue = productValue;
     if (platformFees !== undefined) lead.platformFees = platformFees;
@@ -239,6 +295,126 @@ router.delete('/:id', protect, async (req, res) => {
   } catch (error) {
     console.error('Error deleting lead:', error);
     res.status(500).json({ message: 'Server error while deleting lead' });
+  }
+});
+
+// Add a note to a lead
+router.post('/:id/notes', protect, async (req, res) => {
+  try {
+    const { content } = req.body;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ message: 'Note content is required' });
+    }
+
+    const lead = await Lead.findById(req.params.id);
+
+    if (!lead) {
+      return res.status(404).json({ message: 'Lead not found' });
+    }
+
+    lead.notes.push({
+      content: content.trim(),
+      addedBy: req.user.id,
+      addedAt: new Date()
+    });
+
+    await lead.save();
+    
+    const populatedLead = await Lead.findById(lead._id)
+      .populate('createdBy', 'username email')
+      .populate('team', 'name')
+      .populate('employee', 'name email')
+      .populate('notes.addedBy', 'username email name')
+      .populate('comments.commentedBy', 'username email name')
+      .populate('activityLog.performedBy', 'username email name');
+
+    res.json(populatedLead);
+  } catch (error) {
+    console.error('Error adding note:', error);
+    res.status(500).json({ message: 'Server error while adding note' });
+  }
+});
+
+// Add a comment to a lead
+router.post('/:id/comments', protect, async (req, res) => {
+  try {
+    const { content } = req.body;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ message: 'Comment content is required' });
+    }
+
+    const lead = await Lead.findById(req.params.id);
+
+    if (!lead) {
+      return res.status(404).json({ message: 'Lead not found' });
+    }
+
+    lead.comments.push({
+      content: content.trim(),
+      commentedBy: req.user.id,
+      commentedAt: new Date()
+    });
+
+    await lead.save();
+    
+    const populatedLead = await Lead.findById(lead._id)
+      .populate('createdBy', 'username email')
+      .populate('team', 'name')
+      .populate('employee', 'name email')
+      .populate('notes.addedBy', 'username email name')
+      .populate('comments.commentedBy', 'username email name')
+      .populate('activityLog.performedBy', 'username email name');
+
+    res.json(populatedLead);
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    res.status(500).json({ message: 'Server error while adding comment' });
+  }
+});
+
+// Add an activity to a lead
+router.post('/:id/activities', protect, async (req, res) => {
+  try {
+    const { type, description } = req.body;
+
+    if (!type || !description) {
+      return res.status(400).json({ message: 'Activity type and description are required' });
+    }
+
+    const validTypes = ['call', 'email', 'meeting', 'note', 'other'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ message: 'Invalid activity type' });
+    }
+
+    const lead = await Lead.findById(req.params.id);
+
+    if (!lead) {
+      return res.status(404).json({ message: 'Lead not found' });
+    }
+
+    lead.activityLog.push({
+      type,
+      description: description.trim(),
+      performedBy: req.user.id,
+      performedAt: new Date()
+    });
+
+    await lead.save();
+    
+    const populatedLead = await Lead.findById(lead._id)
+      .populate('createdBy', 'username email')
+      .populate('team', 'name')
+      .populate('employee', 'name email')
+      .populate('notes.addedBy', 'username email name')
+      .populate('comments.commentedBy', 'username email name')
+      .populate('activityLog.performedBy', 'username email name');
+
+    res.json(populatedLead);
+  } catch (error) {
+    console.error('Error adding activity:', error);
+    res.status(500).json({ message: 'Server error while adding activity' });
   }
 });
 

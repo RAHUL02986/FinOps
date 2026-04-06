@@ -82,6 +82,21 @@ router.post(
         // If only date part, add current time
         txnDate = new Date(txnDate).toISOString();
       }
+      // Validate minimum balance for expense transactions
+      const Account = require('../models/Account');
+      if (req.body.type === 'expense' && req.body.account) {
+        const account = await Account.findById(req.body.account);
+        if (account) {
+          const minBalance = typeof account.minimumBalance === 'number' ? account.minimumBalance : 0;
+          if ((account.currentBalance - req.body.amount) < minBalance) {
+            return res.status(400).json({ 
+              success: false, 
+              message: `Insufficient balance. Account balance cannot go below minimum balance (₹${minBalance})` 
+            });
+          }
+        }
+      }
+
       const txn = await Transaction.create({
         ...req.body,
         date: txnDate || undefined,
@@ -90,7 +105,6 @@ router.post(
       });
 
       // Update account balance for ALL account types
-      const Account = require('../models/Account');
       if (txn.account) {
         const account = await Account.findById(txn.account);
         if (account) {
