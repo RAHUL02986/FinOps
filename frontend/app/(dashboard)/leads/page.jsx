@@ -95,7 +95,21 @@ const TECH_STACKS = [
   'Other'
 ];
 
-const LEAD_STATUS_OPTIONS = ['Lead', 'Pending Lead', 'Converted Lead'];
+const LEAD_STATUS_OPTIONS = ['New', 'Discovery', 'Proposal Sent', 'Negotiation', 'Converted Lead', 'Closed/Lost'];
+
+const LEAD_TEMPERATURE = ['Hot', 'Warm', 'Cold'];
+
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR', 'CAD', 'AUD'];
+
+const LOSS_REASONS = [
+  'Price too high',
+  'Competitor chosen',
+  'No response',
+  'Budget constraints',
+  'Timeline mismatch',
+  'Technical requirements',
+  'Other'
+];
 
 const TAG_OPTIONS = [
   'Urgent',
@@ -119,9 +133,18 @@ const TAG_OPTIONS = [
 ];
 
 const STATUS_COLORS = {
-  'Lead': 'bg-blue-100 text-blue-800',
-  'Pending Lead': 'bg-yellow-100 text-yellow-800',
+  'New': 'bg-blue-100 text-blue-800',
+  'Discovery': 'bg-purple-100 text-purple-800',
+  'Proposal Sent': 'bg-yellow-100 text-yellow-800',
+  'Negotiation': 'bg-orange-100 text-orange-800',
   'Converted Lead': 'bg-green-100 text-green-800',
+  'Closed/Lost': 'bg-red-100 text-red-800',
+};
+
+const TEMPERATURE_COLORS = {
+  'Hot': 'bg-red-100 text-red-800',
+  'Warm': 'bg-yellow-100 text-yellow-800',
+  'Cold': 'bg-blue-100 text-blue-800',
 };
 
 
@@ -132,6 +155,7 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState([]);
   const [convertedLeads, setConvertedLeads] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingLead, setEditingLead] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -157,7 +181,7 @@ export default function LeadsPage() {
     leadSource: '',
     projectDescription: '',
     technologyStack: '',
-    leadStatus: 'Lead',
+    leadStatus: 'New',
     notes: '',
     team: '',
     employee: '',
@@ -166,10 +190,15 @@ export default function LeadsPage() {
     clientPhone: '',
     company: '',
     priority: 'Medium',
+    leadTemperature: 'Warm',
     expectedValue: 0,
+    currency: 'USD',
     followUpDate: '',
-    tags: ''
+    tags: '',
+    lossReason: ''
   });
+  const [emailError, setEmailError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   // File upload state
   const [attachments, setAttachments] = useState([]); // for files (images, pdfs)
   const [attachmentLinks, setAttachmentLinks] = useState(['']); // for links
@@ -287,8 +316,92 @@ export default function LeadsPage() {
     fetchLeads();
   }, [fetchLeads]);
 
+  // Validation functions
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePhone = (phone) => {
+    const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}$/;
+    return phoneRegex.test(phone);
+  };
+
+  const checkDuplicateLead = async (email, company) => {
+    try {
+      const response = await leadsAPI.getAll({});
+      const existingLeads = response.data || [];
+      
+      let duplicateByEmail = null;
+      let duplicateByCompany = null;
+      
+      if (email && email.trim()) {
+        duplicateByEmail = existingLeads.find(lead => 
+          lead.clientEmail && 
+          lead.clientEmail.toLowerCase().trim() === email.toLowerCase().trim() && 
+          (!editingLead || lead._id !== editingLead._id)
+        );
+      }
+      
+      if (company && company.trim()) {
+        duplicateByCompany = existingLeads.find(lead => 
+          lead.company && 
+          lead.company.toLowerCase().trim() === company.toLowerCase().trim() && 
+          (!editingLead || lead._id !== editingLead._id)
+        );
+      }
+      
+      return { duplicateByEmail, duplicateByCompany };
+    } catch (error) {
+      console.error('Error checking duplicates:', error);
+      toast.error('Failed to check for duplicates');
+      return { duplicateByEmail: null, duplicateByCompany: null };
+    }
+  };
+
+  // Auto-tagging based on technology stack
+  const autoTag = (techStack) => {
+    const techTags = [];
+    if (techStack.includes('MERN') || techStack.includes('MEAN') || techStack.includes('Full Stack')) {
+      techTags.push('High-Tech');
+    }
+    if (techStack.includes('React Native') || techStack.includes('Flutter') || techStack.includes('iOS') || techStack.includes('Android')) {
+      techTags.push('Mobile Development');
+    }
+    if (techStack.includes('WordPress') || techStack.includes('Shopify')) {
+      techTags.push('CMS/E-commerce');
+    }
+    return techTags;
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    
+    if (name === 'leadStatus' && value !== 'Closed/Lost') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value,
+        lossReason: ''
+      }));
+      return;
+    }
+    
+    if (name === 'clientEmail') {
+      if (value && !validateEmail(value)) {
+        setEmailError('Invalid email format');
+      } else {
+        setEmailError('');
+      }
+    }
+    
+    if (name === 'clientPhone') {
+      if (value && !validatePhone(value)) {
+        setPhoneError('Invalid phone format');
+      } else {
+        setPhoneError('');
+      }
+    }
+    
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -309,6 +422,69 @@ export default function LeadsPage() {
       return;
     }
 
+    if (formData.clientEmail && !validateEmail(formData.clientEmail)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    if (formData.clientPhone && !validatePhone(formData.clientPhone)) {
+      toast.error('Please enter a valid phone number');
+      return;
+    }
+
+    if (formData.leadStatus === 'Closed/Lost' && !formData.lossReason) {
+      toast.error('Please specify a reason for losing this lead');
+      return;
+    }
+
+    if (formData.followUpDate) {
+      const selectedDate = new Date(formData.followUpDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selectedDate < today) {
+        toast.error('Follow-up date cannot be in the past');
+        return;
+      }
+    }
+
+    if (formData.clientEmail || formData.company) {
+      setCheckingDuplicates(true);
+      toast.loading('Checking for duplicates...', { id: 'dup-check' });
+      
+      const { duplicateByEmail, duplicateByCompany } = await checkDuplicateLead(formData.clientEmail, formData.company);
+      
+      toast.dismiss('dup-check');
+      setCheckingDuplicates(false);
+      
+      if (duplicateByEmail) {
+        const confirm = window.confirm(
+          `⚠️ DUPLICATE DETECTED!\n\nA lead with email '${formData.clientEmail}' already exists:\n` +
+          `Client: ${duplicateByEmail.clientName || 'N/A'}\n` +
+          `Company: ${duplicateByCompany?.company || 'N/A'}\n` +
+          `Status: ${duplicateByEmail.leadStatus}\n\n` +
+          `Do you still want to create this lead?`
+        );
+        if (!confirm) {
+          toast.error('Lead creation cancelled');
+          return;
+        }
+      }
+      
+      if (duplicateByCompany && !duplicateByEmail) {
+        const confirm = window.confirm(
+          `⚠️ DUPLICATE DETECTED!\n\nA lead from company '${formData.company}' already exists:\n` +
+          `Client: ${duplicateByCompany.clientName || 'N/A'}\n` +
+          `Email: ${duplicateByCompany.clientEmail || 'N/A'}\n` +
+          `Status: ${duplicateByCompany.leadStatus}\n\n` +
+          `Do you still want to create this lead?`
+        );
+        if (!confirm) {
+          toast.error('Lead creation cancelled');
+          return;
+        }
+      }
+    }
+
     try {
       const data = new FormData();
       Object.entries(formData).forEach(([key, value]) => {
@@ -322,9 +498,11 @@ export default function LeadsPage() {
         }
         data.append(key, value);
       });
-      // Append selected tags
-      if (selectedTags.length > 0) {
-        data.append('tags', selectedTags.join(', '));
+      const autoTags = autoTag(formData.technologyStack);
+      const allTags = [...new Set([...selectedTags, ...autoTags])];
+      
+      if (allTags.length > 0) {
+        data.append('tags', allTags.join(', '));
       }
       // Attach files
       for (let i = 0; i < attachments.length; i++) {
@@ -352,7 +530,7 @@ export default function LeadsPage() {
         leadSource: '',
         projectDescription: '',
         technologyStack: '',
-        leadStatus: 'Lead',
+        leadStatus: 'New',
         notes: '',
         team: '',
         employee: '',
@@ -361,10 +539,15 @@ export default function LeadsPage() {
         clientPhone: '',
         company: '',
         priority: 'Medium',
+        leadTemperature: 'Warm',
         expectedValue: 0,
+        currency: 'USD',
         followUpDate: '',
-        tags: ''
+        tags: '',
+        lossReason: ''
       });
+      setEmailError('');
+      setPhoneError('');
       setSelectedTags([]);
       setAttachments([]);
       setAttachmentLinks(['']);
@@ -392,9 +575,12 @@ export default function LeadsPage() {
       clientPhone: lead.clientPhone || '',
       company: lead.company || '',
       priority: lead.priority || 'Medium',
+      leadTemperature: lead.leadTemperature || 'Warm',
       expectedValue: lead.expectedValue || 0,
+      currency: lead.currency || 'USD',
       followUpDate: lead.followUpDate ? lead.followUpDate.slice(0, 10) : '',
-      tags: lead.tags ? lead.tags.join(', ') : ''
+      tags: lead.tags ? lead.tags.join(', ') : '',
+      lossReason: lead.lossReason || ''
     });
     setSelectedTags(lead.tags || []);
     setShowForm(true);
@@ -417,11 +603,13 @@ export default function LeadsPage() {
     setShowForm(false);
     setEditingLead(null);
     setSelectedTags([]);
+    setEmailError('');
+    setPhoneError('');
     setFormData({
       leadSource: '',
       projectDescription: '',
       technologyStack: '',
-      leadStatus: 'Lead',
+      leadStatus: 'New',
       notes: '',
       team: '',
       employee: '',
@@ -430,9 +618,12 @@ export default function LeadsPage() {
       clientPhone: '',
       company: '',
       priority: 'Medium',
+      leadTemperature: 'Warm',
       expectedValue: 0,
+      currency: 'USD',
       followUpDate: '',
-      tags: ''
+      tags: '',
+      lossReason: ''
     });
   };
 
@@ -510,6 +701,15 @@ export default function LeadsPage() {
     }
   };
 
+  const isOverdue = (followUpDate, leadStatus) => {
+    if (!followUpDate || leadStatus === 'Converted Lead' || leadStatus === 'Closed/Lost') return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const followUp = new Date(followUpDate);
+    followUp.setHours(0, 0, 0, 0);
+    return followUp < today;
+  };
+
   const renderLeadsTable = (leadsData) => (
     <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200">
@@ -522,7 +722,7 @@ export default function LeadsPage() {
               Project Description
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Priority
+              Temperature
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Expected Value
@@ -560,15 +760,13 @@ export default function LeadsPage() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    lead.priority === 'High' ? 'bg-red-100 text-red-800' :
-                    lead.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-green-100 text-green-800'
+                    TEMPERATURE_COLORS[lead.leadTemperature] || 'bg-gray-100 text-gray-800'
                   }`}>
-                    {lead.priority}
+                    {lead.leadTemperature || 'Warm'}
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  ${lead.expectedValue ? lead.expectedValue.toLocaleString() : '0'}
+                  {lead.currency || 'USD'} ${lead.expectedValue ? lead.expectedValue.toLocaleString() : '0'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   {statusEditId === lead._id ? (
@@ -595,8 +793,20 @@ export default function LeadsPage() {
                     </span>
                   )}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {lead.followUpDate ? new Date(lead.followUpDate).toLocaleDateString() : '-'}
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  {lead.followUpDate ? (
+                    <div className={`flex items-center gap-2 ${
+                      isOverdue(lead.followUpDate, lead.leadStatus) ? 'text-red-600 font-semibold' : 'text-gray-500'
+                    }`}>
+                      {isOverdue(lead.followUpDate, lead.leadStatus) && (
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      <span>{new Date(lead.followUpDate).toLocaleDateString()}</span>
+                      {isOverdue(lead.followUpDate, lead.leadStatus) && <span className="text-xs">(OVERDUE)</span>}
+                    </div>
+                  ) : '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <button
@@ -758,9 +968,20 @@ export default function LeadsPage() {
                     detailLead.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
                     'bg-green-100 text-green-800'
                   }`}>{detailLead.priority}</span></div>
-                  <div><b>Expected Value:</b> ${detailLead.expectedValue?.toLocaleString() || '0'}</div>
-                  <div><b>Follow-up Date:</b> {detailLead.followUpDate ? new Date(detailLead.followUpDate).toLocaleDateString() : 'N/A'}</div>
+                  <div><b>Temperature:</b> <span className={`px-2 py-1 rounded text-sm ${
+                    TEMPERATURE_COLORS[detailLead.leadTemperature] || 'bg-gray-100 text-gray-800'
+                  }`}>{detailLead.leadTemperature || 'Warm'}</span></div>
+                  <div><b>Expected Value:</b> {detailLead.currency || 'USD'} ${detailLead.expectedValue?.toLocaleString() || '0'}</div>
+                  <div><b>Follow-up Date:</b> {detailLead.followUpDate ? (
+                    <span className={isOverdue(detailLead.followUpDate, detailLead.leadStatus) ? 'text-red-600 font-semibold' : ''}>
+                      {new Date(detailLead.followUpDate).toLocaleDateString()}
+                      {isOverdue(detailLead.followUpDate, detailLead.leadStatus) && ' (OVERDUE)'}
+                    </span>
+                  ) : 'N/A'}</div>
                   <div><b>Status:</b> <span className={`px-2 py-1 rounded text-sm ${STATUS_COLORS[detailLead.leadStatus]}`}>{detailLead.leadStatus}</span></div>
+                  {detailLead.leadStatus === 'Closed/Lost' && detailLead.lossReason && (
+                    <div><b>Loss Reason:</b> <span className="text-red-600">{detailLead.lossReason}</span></div>
+                  )}
                 </div>
               </div>
             </div>
@@ -951,8 +1172,11 @@ export default function LeadsPage() {
                     value={formData.clientEmail}
                     onChange={handleInputChange}
                     placeholder="client@example.com"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                      emailError ? 'border-red-500' : 'border-gray-300'
+                    }`}
                   />
+                  {emailError && <p className="mt-1 text-sm text-red-600">{emailError}</p>}
                 </div>
 
                 <div>
@@ -965,8 +1189,11 @@ export default function LeadsPage() {
                     value={formData.clientPhone}
                     onChange={handleInputChange}
                     placeholder="+1 234 567 8900"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                      phoneError ? 'border-red-500' : 'border-gray-300'
+                    }`}
                   />
+                  {phoneError && <p className="mt-1 text-sm text-red-600">{phoneError}</p>}
                 </div>
 
                 <div>
@@ -1007,17 +1234,45 @@ export default function LeadsPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Expected Value ($)
+                    Lead Temperature
                   </label>
-                  <input
-                    type="number"
-                    name="expectedValue"
-                    value={formData.expectedValue}
+                  <select
+                    name="leadTemperature"
+                    value={formData.leadTemperature}
                     onChange={handleInputChange}
-                    min="0"
-                    placeholder="0"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
+                  >
+                    {LEAD_TEMPERATURE.map((temp) => (
+                      <option key={temp} value={temp}>{temp}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Expected Value
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      name="currency"
+                      value={formData.currency}
+                      onChange={handleInputChange}
+                      className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      {CURRENCIES.map((curr) => (
+                        <option key={curr} value={curr}>{curr}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      name="expectedValue"
+                      value={formData.expectedValue}
+                      onChange={handleInputChange}
+                      min="0"
+                      placeholder="0"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -1029,8 +1284,10 @@ export default function LeadsPage() {
                     name="followUpDate"
                     value={formData.followUpDate}
                     onChange={handleInputChange}
+                    min={new Date().toISOString().split('T')[0]}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
+                  <p className="mt-1 text-xs text-gray-500">Cannot select past dates</p>
                 </div>
 
                 <div>
@@ -1211,6 +1468,27 @@ export default function LeadsPage() {
               </select>
             </div>
 
+            {formData.leadStatus === 'Closed/Lost' && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <label className="block text-sm font-medium text-red-700 mb-2">
+                  Loss Reason <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="lossReason"
+                  value={formData.lossReason}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-2 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                >
+                  <option value="">Select a reason</option>
+                  {LOSS_REASONS.map((reason) => (
+                    <option key={reason} value={reason}>{reason}</option>
+                  ))}
+                </select>
+                <p className="mt-2 text-sm text-red-600">Please specify why this lead was lost</p>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Notes (Optional)
@@ -1282,14 +1560,26 @@ export default function LeadsPage() {
             <div className="flex gap-4">
               <button
                 type="submit"
-                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
+                disabled={checkingDuplicates}
+                className={`px-6 py-2 rounded-lg font-medium flex items-center gap-2 ${
+                  checkingDuplicates 
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                }`}
               >
-                {editingLead ? 'Update Lead' : 'Create Lead'}
+                {checkingDuplicates && (
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                )}
+                {checkingDuplicates ? 'Checking...' : (editingLead ? 'Update Lead' : 'Create Lead')}
               </button>
               <button
                 type="button"
                 onClick={cancelForm}
-                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
+                disabled={checkingDuplicates}
+                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>

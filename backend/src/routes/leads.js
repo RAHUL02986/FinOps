@@ -92,13 +92,20 @@ router.post('/', protect, upload.array('attachments', 5), async (req, res) => {
   try {
     const { 
       leadSource, projectDescription, technologyStack, leadStatus, notes, team, employee,
-      clientName, clientEmail, clientPhone, company, priority, expectedValue, followUpDate, tags
+      clientName, clientEmail, clientPhone, company, priority, leadTemperature, expectedValue,
+      currency, followUpDate, tags, lossReason
     } = req.body;
 
     // Validation
     if (!leadSource || !projectDescription || !technologyStack) {
       return res.status(400).json({ 
         message: 'Please provide all required fields: leadSource, projectDescription, and technologyStack' 
+      });
+    }
+
+    if (leadStatus === 'Closed/Lost' && !lossReason) {
+      return res.status(400).json({ 
+        message: 'Loss reason is required when lead status is Closed/Lost' 
       });
     }
 
@@ -132,7 +139,7 @@ router.post('/', protect, upload.array('attachments', 5), async (req, res) => {
       leadSource,
       projectDescription,
       technologyStack,
-      leadStatus: leadStatus || 'Lead',
+      leadStatus: leadStatus || 'New',
       notes: notesArray,
       createdBy: req.user.id,
       team: team || undefined,
@@ -143,9 +150,12 @@ router.post('/', protect, upload.array('attachments', 5), async (req, res) => {
       clientPhone: clientPhone || undefined,
       company: company || undefined,
       priority: priority || 'Medium',
+      leadTemperature: leadTemperature || 'Warm',
       expectedValue: expectedValue || 0,
+      currency: currency || 'USD',
       followUpDate: followUpDate || undefined,
-      tags: tags ? (Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim())) : []
+      tags: tags ? (Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim())) : [],
+      lossReason: lossReason || ''
     });
 
     const savedLead = await newLead.save();
@@ -187,13 +197,20 @@ router.put('/:id', protect, upload.array('attachments', 5), async (req, res) => 
     const { 
       leadSource, projectDescription, technologyStack, leadStatus, notes, team, employee, 
       milestones, productValue, platformFees, finalValue,
-      clientName, clientEmail, clientPhone, company, priority, expectedValue, followUpDate, tags
+      clientName, clientEmail, clientPhone, company, priority, leadTemperature, expectedValue,
+      currency, followUpDate, tags, lossReason
     } = req.body;
 
     const lead = await Lead.findById(req.params.id);
 
     if (!lead) {
       return res.status(404).json({ message: 'Lead not found' });
+    }
+
+    if (leadStatus === 'Closed/Lost' && !lossReason) {
+      return res.status(400).json({ 
+        message: 'Loss reason is required when lead status is Closed/Lost' 
+      });
     }
 
     // Update basic fields
@@ -212,9 +229,12 @@ router.put('/:id', protect, upload.array('attachments', 5), async (req, res) => 
     
     // Update lead details
     if (priority !== undefined) lead.priority = priority;
+    if (leadTemperature !== undefined) lead.leadTemperature = leadTemperature;
     if (expectedValue !== undefined) lead.expectedValue = expectedValue;
+    if (currency !== undefined) lead.currency = currency;
     if (followUpDate !== undefined) lead.followUpDate = followUpDate;
     if (tags !== undefined) lead.tags = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim());
+    if (lossReason !== undefined) lead.lossReason = lossReason;
 
     // Update milestones and financials for converted leads
     if (milestones !== undefined) lead.milestones = milestones;

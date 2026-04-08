@@ -1,5 +1,13 @@
 // Start recurring expense reminder cron job
 require('./scheduler/recurringExpenseReminder.cron');
+
+// Start lead alerts cron jobs
+const { 
+  scheduleHighPriorityAlerts, 
+  scheduleOverdueFollowUps, 
+  scheduleHotLeadAlerts 
+} = require('./scheduler/leadAlerts.cron');
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -14,6 +22,11 @@ const app = express();
 
 // Connect to MongoDB
 connectDB();
+
+// Initialize lead alert cron jobs
+scheduleHighPriorityAlerts();
+scheduleOverdueFollowUps();
+scheduleHotLeadAlerts();
 
 // Security & parsing middleware
 app.use(helmet());

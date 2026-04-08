@@ -112,8 +112,26 @@ const leadSchema = new mongoose.Schema({
   leadStatus: {
     type: String,
     required: [true, 'Lead status is required'],
-    enum: ['Lead', 'Pending Lead', 'Converted Lead'],
-    default: 'Lead'
+    enum: ['New', 'Discovery', 'Proposal Sent', 'Negotiation', 'Converted Lead', 'Closed/Lost'],
+    default: 'New'
+  },
+  
+  leadTemperature: {
+    type: String,
+    enum: ['Hot', 'Warm', 'Cold'],
+    default: 'Warm'
+  },
+  
+  currency: {
+    type: String,
+    enum: ['USD', 'EUR', 'GBP', 'INR', 'CAD', 'AUD'],
+    default: 'USD'
+  },
+  
+  lossReason: {
+    type: String,
+    enum: ['Price too high', 'Competitor chosen', 'No response', 'Budget constraints', 'Timeline mismatch', 'Technical requirements', 'Other', ''],
+    default: ''
   },
   convertedAt: {
     type: Date,
@@ -227,12 +245,15 @@ const leadSchema = new mongoose.Schema({
 
 // Middleware to track status changes
 leadSchema.pre('save', function(next) {
-  // Set convertedAt date when status changes to 'Converted Lead'
   if (this.isModified('leadStatus') && this.leadStatus === 'Converted Lead' && !this.convertedAt) {
     this.convertedAt = new Date();
   }
   
-  // Track status history
+  if (this.leadStatus === 'Closed/Lost' && !this.lossReason) {
+    const error = new Error('Loss reason is required when lead status is Closed/Lost');
+    return next(error);
+  }
+  
   if (this.isModified('leadStatus')) {
     this.statusHistory.push({
       status: this.leadStatus,
