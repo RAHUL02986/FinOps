@@ -81,6 +81,7 @@ export default function LoginPage() {
         router.push(result.user.role === 'superadmin' ? '/admin' : '/dashboard');
       }
     } catch (err) {
+      console.error('Login error:', err, err.response?.data);
       setError(err.response?.data?.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
@@ -122,8 +123,16 @@ export default function LoginPage() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
+              <div className="bg-red-100 border border-red-400 text-red-800 px-4 py-3 rounded-lg text-sm flex items-center justify-between mb-2 animate-fade-in">
+                <span>{error}</span>
+                <button
+                  type="button"
+                  aria-label="Dismiss error"
+                  className="ml-4 text-xl leading-none focus:outline-none"
+                  onClick={() => setError('')}
+                >
+                  &times;
+                </button>
               </div>
             )}
 

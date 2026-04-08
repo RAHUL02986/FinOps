@@ -14,6 +14,7 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
     alternateMobile: employee?.alternateMobile || "",
     aadhaar: employee?.aadhaar || "",
     department: employee?.department || "",
+    password: '',
     joiningDate: employee?.joiningDate ? new Date(employee.joiningDate).toISOString().slice(0, 10) : "",
     status: employee?.isActive === false ? "Terminated" : "Active",
   });
@@ -44,6 +45,7 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
         alternateMobile: form.alternateMobile,
         aadhaar: form.aadhaar,
         department: form.department,
+        password: form.password,
         joiningDate: form.joiningDate,
         isActive: form.status === "Active",
       };
@@ -144,6 +146,16 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
         onChange={handleChange}
         placeholder="Designation"
         className="input col-span-2"
+      />
+      <input
+        name="password"
+        type="password"
+        required
+        minLength={6}
+        value={form.password}
+        onChange={handleChange}
+        className="input"
+        placeholder="Min. 6 characters"
       />
       <input
         name="joiningDate"

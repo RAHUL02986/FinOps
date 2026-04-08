@@ -97,10 +97,16 @@ router.post(
           .json({ success: false, message: 'Account deactivated. Contact admin.' });
       }
 
+
       const isMatch = await user.matchPassword(password);
       console.log('LOGIN RESULT: password match?', isMatch);
       if (!isMatch) {
         return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      }
+
+      // Block employee role from logging in
+      if (user.role === 'employee') {
+        return res.status(403).json({ success: false, message: 'You are not able to login to this tool.' });
       }
 
       // Roles requiring OTP

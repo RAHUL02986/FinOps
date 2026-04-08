@@ -252,13 +252,19 @@ export default function LeadsPage() {
       const params = {};
       if (searchTerm) params.search = searchTerm;
       if (filterSource) params.source = filterSource;
+      if (filterPriority) params.priority = filterPriority;
 
       // Fetch regular leads (not converted)
       const regularLeadsResponse = await leadsAPI.getAll({ 
         ...params, 
         status: activeTab === 'leads' ? undefined : 'Converted Lead' 
       });
-      const leadsData = regularLeadsResponse.data;
+      let leadsData = regularLeadsResponse.data;
+
+      // If backend does not support priority filter, filter on frontend:
+      if (filterPriority) {
+        leadsData = leadsData.filter(lead => lead.priority === filterPriority);
+      }
 
       if (activeTab === 'leads') {
         // Filter out converted leads
@@ -271,20 +277,11 @@ export default function LeadsPage() {
       }
     } catch (error) {
       console.error('Error fetching leads:', error);
-                      {/* Button to open milestone/costing modal */}
-                      {detailLead && detailLead.leadStatus === 'Converted Lead' && (
-                        <button
-                          className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded"
-                          onClick={() => setShowMilestoneModal(true)}
-                        >
-                          Edit Milestones & Costing
-                        </button>
-                      )}
       toast.error('Failed to fetch leads');
     } finally {
       setLoading(false);
     }
-  }, [activeTab, searchTerm, filterSource]);
+  }, [activeTab, searchTerm, filterSource, filterPriority]);
 
   useEffect(() => {
     fetchLeads();

@@ -20,6 +20,7 @@ router.get('/bdm', async (req, res) => {
   }
 });
 
+
 // GET /api/users (open to all roles)
 router.get('/', authorize('superadmin', 'admin', 'hr', 'manager', 'dataentry'), async (req, res) => {
   try {
@@ -28,7 +29,6 @@ router.get('/', authorize('superadmin', 'admin', 'hr', 'manager', 'dataentry'), 
     if (role) {
       filter.role = role;
     }
-
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -38,29 +38,17 @@ router.get('/', authorize('superadmin', 'admin', 'hr', 'manager', 'dataentry'), 
     if (isActive !== undefined && isActive !== '') {
       filter.isActive = isActive === 'true';
     }
-
-    const total = await User.countDocuments(filter);
     const users = await User.find(filter)
-      .select('-password')
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * parseInt(limit))
-      .limit(parseInt(limit));
-
-    res.json({
-      success: true,
-      count: users.length,
-      total,
-      pages: Math.ceil(total / limit),
-      currentPage: parseInt(page),
-      data: users,
-    });
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .select('-password');
+    res.json({ success: true, data: users });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// All other user routes restricted to superadmin, admin, and hr
-router.use(authorize('superadmin', 'admin', 'hr'));
+
 
 // POST /api/users
   router.post(
