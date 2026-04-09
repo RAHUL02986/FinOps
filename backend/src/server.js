@@ -46,6 +46,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(require('path').join(__dirname, '..', 'uploads'), {
   setHeaders: (res) => {
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
   }
 }));
 
