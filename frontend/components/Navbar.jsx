@@ -54,6 +54,15 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
   const [showNotifsDropdown, setShowNotifsDropdown] = useState(false);
   const [uploading, setUploading] = useState(false);
   const notifsRef = useRef(null);
+  
+  // API base URL for images
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+  
+  // Debug: log user profile image info
+  console.log('Navbar - User:', user?.name, 'ProfileImage:', user?.profileImage);
+  if (user?.profileImage) {
+    console.log('Navbar - Full URL:', `${API_BASE_URL}${user.profileImage}`);
+  }
 
   // Only show bell icon for admin/superadmin
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
@@ -112,9 +121,13 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
     setUploading(true);
     try {
       const res = await usersAPI.uploadAvatar(file);
+      console.log('Upload response:', res.data);
+      console.log('Profile image path:', res.data.profileImage);
+      console.log('Full image URL:', `${API_BASE_URL}${res.data.profileImage}`);
       updateUser({ profileImage: res.data.profileImage });
       toast.success('Profile image updated!');
     } catch (err) {
+      console.error('Upload error:', err);
       toast.error(err.response?.data?.message || 'Failed to upload image');
     } finally {
       setUploading(false);
@@ -211,7 +224,16 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
           <label htmlFor="navbar-avatar-upload" className="cursor-pointer block">
             <div className={`w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden ${uploading ? 'opacity-50' : 'hover:ring-2 hover:ring-indigo-400 transition-all'}`}>
               {user?.profileImage ? (
-                <img src={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}${user.profileImage}`} alt={user?.name} className="w-full h-full object-cover" />
+                <img 
+                  key={user.profileImage} 
+                  src={`${API_BASE_URL}${user.profileImage}`} 
+                  alt={user?.name} 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    console.error('Image failed to load:', e.target.src);
+                    e.target.style.display = 'none';
+                  }}
+                />
               ) : (
                 <span className="text-indigo-700 font-semibold text-sm">{user?.name?.[0]?.toUpperCase()}</span>
               )}
