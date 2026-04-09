@@ -117,6 +117,14 @@ const UserSchema = new mongoose.Schema({
       trim: true,
       default: '',
     },
+    profileImage: {
+      type: String,
+      default: '', // stores local file path or filename
+    },
+    profileImage: {
+      type: String,
+      default: '', // stores local file path or filename
+    },
     // Removed duplicate fields
   },
   { timestamps: true }

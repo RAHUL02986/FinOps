@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
-import { notificationsAPI } from '../lib/api';
+import { notificationsAPI, usersAPI } from '../lib/api';
+import toast from 'react-hot-toast';
 
 const ELEVATED = ['superadmin', 'hr', 'manager'];
 const isElevated = (role) => ELEVATED.includes(role);
@@ -46,11 +47,12 @@ const NOTIF_ICON = {
 export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const [pendingCount, setPendingCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifsDropdown, setShowNotifsDropdown] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const notifsRef = useRef(null);
 
   // Only show bell icon for admin/superadmin
@@ -88,6 +90,35 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
 
   const handleMarkAllRead = async () => {
     try { await notificationsAPI.markAllRead(); fetchNotifications(); } catch {}
+  };
+
+  // Handle avatar upload
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Check file size (2MB limit)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('File size must be less than 2MB');
+      return;
+    }
+
+    // Check file type
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast.error('Only JPEG, PNG, and WebP images are allowed');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const res = await usersAPI.uploadAvatar(file);
+      updateUser({ profileImage: res.data.profileImage });
+      toast.success('Profile image updated!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to upload image');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const title = Object.entries(PAGE_TITLES).find(([path]) => pathname === path)?.[1] ?? 'Expenditure Tracker';
@@ -176,8 +207,24 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
           <p className="text-sm font-medium text-gray-700">{user?.name}</p>
           <p className="text-xs text-gray-400 capitalize">{user?.role}</p>
         </div>
-        <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center">
-          <span className="text-indigo-700 font-semibold text-sm">{user?.name?.[0]?.toUpperCase()}</span>
+        <div className="relative">
+          <label htmlFor="navbar-avatar-upload" className="cursor-pointer block">
+            <div className={`w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden ${uploading ? 'opacity-50' : 'hover:ring-2 hover:ring-indigo-400 transition-all'}`}>
+              {user?.profileImage ? (
+                <img src={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}${user.profileImage}`} alt={user?.name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-indigo-700 font-semibold text-sm">{user?.name?.[0]?.toUpperCase()}</span>
+              )}
+            </div>
+          </label>
+          <input 
+            id="navbar-avatar-upload" 
+            type="file" 
+            accept="image/jpeg,image/png,image/webp" 
+            onChange={handleAvatarUpload}
+            disabled={uploading}
+            className="hidden"
+          />
         </div>
         <button onClick={logout} className="md:hidden text-gray-400 hover:text-red-500 transition-colors" title="Sign out">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

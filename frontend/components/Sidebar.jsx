@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
+import { usersAPI } from '../lib/api';
+import toast from 'react-hot-toast';
 
 
 
@@ -248,6 +250,9 @@ const ELEVATED_NAV = [
 
   export default function Sidebar({ onNavigate, isMobile }) {
     const pathname = usePathname();
+    const { user, logout, updateUser } = useAuth();
+    const [pendingCount, setPendingCount] = useState(0);
+    const [uploading, setUploading] = useState(false);
 
     // Helper to check if nav item is active
     const isActive = (href) => {
@@ -262,8 +267,36 @@ const ELEVATED_NAV = [
       // For all others, allow startsWith for subpages
       return pathname.startsWith(href);
     };
-    const { user, logout } = useAuth();
-    const [pendingCount, setPendingCount] = useState(0);
+    
+    // Handle avatar upload
+    const handleAvatarUpload = async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      
+      // Check file size (2MB limit)
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error('File size must be less than 2MB');
+        return;
+      }
+
+      // Check file type
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        toast.error('Only JPEG, PNG, and WebP images are allowed');
+        return;
+      }
+
+      setUploading(true);
+      try {
+        const res = await usersAPI.uploadAvatar(file);
+        updateUser({ profileImage: res.data.profileImage });
+        toast.success('Profile image updated!');
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to upload image');
+      } finally {
+        setUploading(false);
+      }
+    };
+
     let navItems = [];
     if (!user) navItems = [];
     else if (user.role === 'lead') navItems = LEAD_NAV;
@@ -354,10 +387,26 @@ const ELEVATED_NAV = [
         </nav>
         <div className="px-3 py-4 border-t border-gray-100">
           <div className="flex items-center gap-3 px-3 py-2 mb-1">
-            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-              <span className="text-indigo-700 font-semibold text-sm">
-                {user?.name?.[0]?.toUpperCase()}
-              </span>
+            <div className="relative">
+              <label htmlFor="sidebar-avatar-upload" className="cursor-pointer block">
+                <div className={`w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden ${uploading ? 'opacity-50' : 'hover:ring-2 hover:ring-indigo-400 transition-all'}`}>
+                  {user?.profileImage ? (
+                    <img src={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}${user.profileImage}`} alt={user?.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-indigo-700 font-semibold text-sm">
+                      {user?.name?.[0]?.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+              </label>
+              <input 
+                id="sidebar-avatar-upload" 
+                type="file" 
+                accept="image/jpeg,image/png,image/webp" 
+                onChange={handleAvatarUpload}
+                disabled={uploading}
+                className="hidden"
+              />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>

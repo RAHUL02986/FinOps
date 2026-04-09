@@ -57,7 +57,8 @@ router.post(
           sector: user.sector,
           employmentType: user.employmentType,
           joiningDate: user.joiningDate,
-          experienceYears: user.experienceYears
+          experienceYears: user.experienceYears,
+          profileImage: user.profileImage
         },
       });
 
@@ -183,7 +184,8 @@ router.post(
           sector: user.sector,
           employmentType: user.employmentType,
           joiningDate: user.joiningDate,
-          experienceYears: user.experienceYears
+          experienceYears: user.experienceYears,
+          profileImage: user.profileImage
         },
       });
     } catch (error) {
@@ -234,7 +236,8 @@ router.post('/verify-otp', (req, res, next) => {
       sector: user.sector,
       employmentType: user.employmentType,
       joiningDate: user.joiningDate,
-      experienceYears: user.experienceYears
+      experienceYears: user.experienceYears,
+      profileImage: user.profileImage
     },
   });
 });
@@ -253,6 +256,7 @@ router.get('/me', protect, async (req, res) => {
         role: user.role,
         isActive: user.isActive,
         createdAt: user.createdAt,
+        profileImage: user.profileImage,
       },
     });
   } catch (error) {

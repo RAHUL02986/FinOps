@@ -37,7 +37,7 @@ const SMTP_TYPES = [
 export default function SettingsPage() {
     // Users & Roles state (fetched from backend)
     const [users, setUsers] = useState([]);
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [tab, setTab] = useState('categories');
   // SMTP state
   const [configs, setConfigs] = useState([]);
@@ -50,6 +50,8 @@ export default function SettingsPage() {
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryType, setNewCategoryType] = useState("Income");
+
+
 
 
   useEffect(() => {

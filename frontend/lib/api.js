@@ -77,6 +77,11 @@ export const usersAPI = {
   create: (data) => api.post('/users', data),
   update: (id, data) => api.put(`/users/${id}`, data),
   remove: (id) => api.delete(`/users/${id}`),
+  uploadAvatar: (file) => {
+    const fd = new FormData();
+    fd.append('avatar', file);
+    return api.post('/users/avatar', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
 };
 
 // Removed inventoryAPI

@@ -49,6 +49,7 @@ app.use('/api/expenses', require('./routes/expenses'));
 app.use('/api/income', require('./routes/income'));
 app.use('/api/transactions', require('./routes/transactions'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/users', require('./routes/userAvatar'));
 app.use('/api/export-users', require('./routes/exportUsers'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 
