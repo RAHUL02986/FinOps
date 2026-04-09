@@ -10,7 +10,7 @@ const STATUS_OPTIONS = ["All", "Approved", "Pending", "Rejected", "Draft"];
 
 function TransactionRow({ txn, user, onAction }) {
   const [open, setOpen] = useState(false);
-  const isAdmin = user?.role === 'superadmin';
+  const isAdmin = user?.role === 'superadmin' || user?.role === 'admin';
   // Icon for type
   const typeIcon = txn.type === 'income' ? <FaArrowUp className="text-green-500 inline mr-1" />
     : txn.type === 'expense' ? <FaArrowDown className="text-red-500 inline mr-1" />

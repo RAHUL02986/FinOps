@@ -244,7 +244,7 @@ const ELEVATED_NAV = [
     },
   ];
 
-  const isElevated = (role) => ['superadmin', 'hr', 'manager'].includes(role);
+  const isElevated = (role) => ['superadmin', 'admin', 'hr', 'manager'].includes(role);
 
   export default function Sidebar({ onNavigate, isMobile }) {
     const pathname = usePathname();
@@ -333,7 +333,7 @@ const ELEVATED_NAV = [
             </Link>
           ))}
           {/* Removed Messages link */}
-          {user?.role === 'superadmin' && (
+          {(user?.role === 'superadmin' || user?.role === 'admin') && (
             <>
               {ADMIN_NAV.map((item) => (
                 <Link

@@ -244,7 +244,31 @@ const leadSchema = new mongoose.Schema({
 });
 
 // Middleware to track status changes
-leadSchema.pre('save', function(next) {
+leadSchema.pre('save', async function(next) {
+  // Validate team reference
+  if (this.team) {
+    try {
+      const Team = mongoose.model('Team');
+      const teamExists = await Team.exists({ _id: this.team });
+      if (!teamExists) {
+        return next(new Error('Selected team does not exist. Please select a valid team.'));
+      }
+    } catch (err) {
+      return next(new Error('Error validating team reference.'));
+    }
+  }
+  // Validate employee reference
+  if (this.employee) {
+    try {
+      const User = mongoose.model('User');
+      const userExists = await User.exists({ _id: this.employee });
+      if (!userExists) {
+        return next(new Error('Selected employee does not exist. Please select a valid employee.'));
+      }
+    } catch (err) {
+      return next(new Error('Error validating employee reference.'));
+    }
+  }
   if (this.isModified('leadStatus') && this.leadStatus === 'Converted Lead' && !this.convertedAt) {
     this.convertedAt = new Date();
   }

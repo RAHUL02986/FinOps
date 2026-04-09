@@ -6,7 +6,7 @@ const { sendRecurringExpenseReminders } = require('../scheduler/recurringExpense
 
 // POST /api/recurring-expenses/send-reminders
 // Only superadmin can trigger
-router.post('/send-reminders', protect, authorize('superadmin'), async (req, res) => {
+router.post('/send-reminders', protect, authorize('superadmin', 'admin'), async (req, res) => {
   try {
     await sendRecurringExpenseReminders();
     res.json({ message: 'Recurring expense reminders processed and emails sent if due.' });

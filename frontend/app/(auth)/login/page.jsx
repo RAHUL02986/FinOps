@@ -78,7 +78,13 @@ export default function LoginPage() {
         setOtpEmail(result.email);
         setError('');
       } else if (result.user) {
-        router.push(result.user.role === 'superadmin' ? '/admin' : '/dashboard');
+        if (result.user.role === 'lead') {
+          router.push('/leads');
+        } else if (result.user.role === 'dataentry') {
+          router.push('/transactions');
+        } else {
+          router.push((result.user.role === 'superadmin' || result.user.role === 'admin') ? '/admin' : '/dashboard');
+        }
       }
     } catch (err) {
       console.error('Login error:', err, err.response?.data);
@@ -94,7 +100,13 @@ export default function LoginPage() {
     try {
       const result = await login(otpEmail, undefined, otp);
       if (result.user) {
-        router.push(result.user.role === 'superadmin' ? '/admin' : '/dashboard');
+        if (result.user.role === 'lead') {
+          router.push('/leads');
+        } else if (result.user.role === 'dataentry') {
+          router.push('/transactions');
+        } else {
+          router.push((result.user.role === 'superadmin' || result.user.role === 'admin') ? '/admin' : '/dashboard');
+        }
       }
     } catch (err) {
       setError(err.response?.data?.message || 'OTP verification failed.');

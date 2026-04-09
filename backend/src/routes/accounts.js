@@ -22,7 +22,7 @@ router.get('/', authorize('superadmin', 'hr', 'manager', 'dataentry'), async (re
 });
 
 // All other account routes restricted to superadmin, hr
-router.use(authorize('superadmin', 'hr'));
+router.use(authorize('superadmin', 'admin', 'hr'));
 
 // POST create account
 router.post('/', async (req, res) => {

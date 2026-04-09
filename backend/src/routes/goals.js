@@ -5,7 +5,7 @@ const { authorize } = require('../middleware/roleCheck');
 const Goal = require('../models/Goal');
 
 router.use(protect);
-router.use(authorize('superadmin', 'manager'));
+router.use(authorize('superadmin', 'admin', 'manager'));
 
 // GET all goals
 router.get('/', async (req, res) => {

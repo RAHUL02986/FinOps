@@ -53,7 +53,7 @@ export default function SettingsPage() {
 
 
   useEffect(() => {
-    if (tab === 'smtp' && user?.role === 'superadmin') loadConfigs();
+    if (tab === 'smtp' && (user?.role === 'superadmin' || user?.role === 'admin')) loadConfigs();
     if (tab === 'categories') fetchCategories();
     if (tab === 'users') fetchUsers();
     // TODO: fetch notifications as needed

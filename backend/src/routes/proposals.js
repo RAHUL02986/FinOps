@@ -27,7 +27,7 @@ router.use(protect);
 // ====== TEMPLATES ======
 
 // GET all templates
-router.get('/templates', authorize('superadmin', 'manager'), async (req, res) => {
+router.get('/templates', authorize('superadmin', 'admin', 'manager'), async (req, res) => {
   try {
     const templates = await ProposalTemplate.find().populate('createdBy', 'name email').sort('-createdAt');
     res.json(templates);
@@ -37,7 +37,7 @@ router.get('/templates', authorize('superadmin', 'manager'), async (req, res) =>
 });
 
 // POST create template
-router.post('/templates', authorize('superadmin', 'manager'), async (req, res) => {
+router.post('/templates', authorize('superadmin', 'admin', 'manager'), async (req, res) => {
   try {
     const template = await ProposalTemplate.create({ ...req.body, createdBy: req.user._id });
     res.status(201).json(template);
@@ -47,7 +47,7 @@ router.post('/templates', authorize('superadmin', 'manager'), async (req, res) =
 });
 
 // PUT update template
-router.put('/templates/:id', authorize('superadmin', 'manager'), async (req, res) => {
+router.put('/templates/:id', authorize('superadmin', 'admin', 'manager'), async (req, res) => {
   try {
     const template = await ProposalTemplate.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     if (!template) return res.status(404).json({ message: 'Template not found' });
@@ -58,7 +58,7 @@ router.put('/templates/:id', authorize('superadmin', 'manager'), async (req, res
 });
 
 // DELETE template
-router.delete('/templates/:id', authorize('superadmin'), async (req, res) => {
+router.delete('/templates/:id', authorize('superadmin', 'admin'), async (req, res) => {
   try {
     const template = await ProposalTemplate.findByIdAndDelete(req.params.id);
     if (!template) return res.status(404).json({ message: 'Template not found' });
@@ -71,7 +71,7 @@ router.delete('/templates/:id', authorize('superadmin'), async (req, res) => {
 // ====== PROPOSALS ======
 
 // GET all proposals
-router.get('/', authorize('superadmin', 'manager'), async (req, res) => {
+router.get('/', authorize('superadmin', 'admin', 'manager'), async (req, res) => {
   try {
     const { status, search, page = 1, limit = 20 } = req.query;
     const query = {};
@@ -96,7 +96,7 @@ router.get('/', authorize('superadmin', 'manager'), async (req, res) => {
 });
 
 // GET single proposal
-router.get('/:id', authorize('superadmin', 'manager'), async (req, res) => {
+router.get('/:id', authorize('superadmin', 'admin', 'manager'), async (req, res) => {
   try {
     const proposal = await Proposal.findById(req.params.id).populate('createdBy', 'name email').populate('template');
     if (!proposal) return res.status(404).json({ message: 'Proposal not found' });
@@ -107,7 +107,7 @@ router.get('/:id', authorize('superadmin', 'manager'), async (req, res) => {
 });
 
 // POST create proposal
-router.post('/', authorize('superadmin', 'manager'), async (req, res) => {
+router.post('/', authorize('superadmin', 'admin', 'manager'), async (req, res) => {
   try {
     const proposalData = {
       ...req.body,
@@ -131,7 +131,7 @@ router.post('/', authorize('superadmin', 'manager'), async (req, res) => {
 });
 
 // PUT update proposal
-router.put('/:id', authorize('superadmin', 'manager'), async (req, res) => {
+router.put('/:id', authorize('superadmin', 'admin', 'manager'), async (req, res) => {
   try {
     const proposal = await Proposal.findById(req.params.id);
     if (!proposal) return res.status(404).json({ message: 'Proposal not found' });
@@ -146,7 +146,7 @@ router.put('/:id', authorize('superadmin', 'manager'), async (req, res) => {
 });
 
 // DELETE proposal
-router.delete('/:id', authorize('superadmin', 'manager'), async (req, res) => {
+router.delete('/:id', authorize('superadmin', 'admin', 'manager'), async (req, res) => {
   try {
     const proposal = await Proposal.findByIdAndDelete(req.params.id);
     if (!proposal) return res.status(404).json({ message: 'Proposal not found' });
@@ -157,7 +157,7 @@ router.delete('/:id', authorize('superadmin', 'manager'), async (req, res) => {
 });
 
 // POST upload logo for proposal company
-router.post('/upload-logo', authorize('superadmin', 'manager'), upload.single('logo'), async (req, res) => {
+router.post('/upload-logo', authorize('superadmin', 'admin', 'manager'), upload.single('logo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
     const logoUrl = `/uploads/logos/${req.file.filename}`;
@@ -168,7 +168,7 @@ router.post('/upload-logo', authorize('superadmin', 'manager'), upload.single('l
 });
 
 // POST send proposal to client via email
-router.post('/:id/send', authorize('superadmin', 'manager'), async (req, res) => {
+router.post('/:id/send', authorize('superadmin', 'admin', 'manager'), async (req, res) => {
   try {
     const proposal = await Proposal.findById(req.params.id).populate('template');
     if (!proposal) return res.status(404).json({ message: 'Proposal not found' });

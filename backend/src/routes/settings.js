@@ -7,7 +7,7 @@ const nodemailer = require('nodemailer');
 
 // All routes require superadmin
 router.use(protect);
-router.use(authorize('superadmin'));
+router.use(authorize('superadmin', 'admin'));
 
 // GET all SMTP configs
 router.get('/', async (req, res) => {
