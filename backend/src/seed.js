@@ -19,13 +19,7 @@ const seed = async () => {
       process.exit(0);
     }
 
-    await User.create({
-      name: 'Super Admin',
-      email: 'admin@expenditure.com',
-      password: 'Admin@123',
-      role: 'superadmin',
-    });
-
+ 
     console.log('✅  Super admin created successfully');
     console.log('   Email:    admin@expenditure.com');
     console.log('   Password: Admin@123');

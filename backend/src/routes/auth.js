@@ -82,8 +82,8 @@ router.post(
     }
 
     try {
-      const { email, password } = req.body;
-
+      let { email, password } = req.body;
+      email = email.trim().toLowerCase();
       const user = await User.findOne({ email }).select('+password');
       console.log('LOGIN ATTEMPT:', { email, found: !!user, role: user?.role });
       if (!user) {
