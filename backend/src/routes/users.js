@@ -1,0 +1,211 @@
+const express = require('express');
+const { body, validationResult } = require('express-validator');
+const User = require('../models/User');
+const Team = require('../models/Team'); 
+const { protect } = require('../middleware/auth');
+const { authorize } = require('../middleware/roleCheck');
+
+const router = express.Router();
+router.use(protect);
+
+// GET /api/users/bdm - fetch only BDM department users
+router.get('/bdm', async (req, res) => {
+  try {
+    const users = await User.find({
+      department: { $regex: /^\s*bdm\s*$/i },
+      isActive: true
+    }).select('-password');    
+    res.json({ success: true, data: users });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/users
+router.get('/', authorize('superadmin', 'admin', 'hr', 'manager', 'dataentry'), async (req, res) => {
+  try {
+    const { search, isActive, page, limit, role } = req.query; // Removed hardcoded default assignments here
+    const filter = {};
+    
+    if (role) {
+      filter.role = role;
+    }
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+      ];
+    }
+    if (isActive !== undefined && isActive !== '') {
+      filter.isActive = isActive === 'true';
+    }
+
+    // FIX 1: If NO limit query parameter is explicitly provided, fetch ALL records (fixes dropdown truncation)
+    let query = User.find(filter).select('-password');
+    
+    if (limit) {
+      const pageNum = parseInt(page) || 1;
+      const limitNum = parseInt(limit);
+      query = query.skip((pageNum - 1) * limitNum).limit(limitNum);
+    }
+
+    const users = await query;
+    res.json({ success: true, data: users });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/users
+router.post(
+  '/',
+  [
+    body('name').notEmpty().trim().withMessage('Name is required'),
+    body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    body('role').optional().isIn(['employee', 'dataentry', 'hr', 'manager', 'admin', 'superadmin']).withMessage('Invalid role'),
+    body('sector').optional().isIn(['IT', 'HR', 'Finance', 'Sales', 'Marketing', 'Operations', 'Admin']).withMessage('Invalid sector'),
+    body('employmentType').optional().isIn(['full-time', 'part-time']).withMessage('Invalid employment type'),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    try {
+      const { 
+        name, email, password, role = 'employee', designation = '', phone = '', 
+        sector = 'IT', employmentType = 'full-time', joiningDate, experienceYears = 0, 
+        employeeId = '', fatherName = '', motherName = '', alternateMobile = '', 
+        aadhaar = '', department = '', teamId 
+      } = req.body;
+
+      const exists = await User.findOne({ email });
+      if (exists) {
+        return res.status(400).json({ success: false, message: 'Email already registered' });
+      }
+
+      // Format clean string text for matching consistency
+      const cleanDepartment = department ? department.trim() : '';
+
+      const user = await User.create({ 
+        name, email, password, role, designation, phone, sector, 
+        employmentType, joiningDate, experienceYears: Number(experienceYears),
+        employeeId, fatherName, motherName, alternateMobile, aadhaar, 
+        department: cleanDepartment
+      });
+
+      // FIX 2: Dynamic fallback matching logic for connecting to Team lists robustly
+      if (teamId) {
+        await Team.findByIdAndUpdate(teamId, { $addToSet: { members: user._id } });
+      } else if (cleanDepartment) {
+        await Team.findOneAndUpdate(
+          { name: { $regex: new RegExp(`^\\s*${cleanDepartment}\\s*$`, 'i') } },
+          { $addToSet: { members: user._id } }
+        );
+      }
+
+      const userObj = await User.findById(user._id).select('-password');
+      res.status(201).json({ success: true, data: userObj });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+);
+
+// PUT /api/users/:id
+router.put('/:id', async (req, res) => {
+  try {
+    const { 
+      name, email, role, designation, phone, sector, employmentType, 
+      joiningDate, experienceYears, isActive, password, employeeId, 
+      fatherName, motherName, alternateMobile, aadhaar, department, teamId 
+    } = req.body;
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (req.params.id === req.user.id.toString() && isActive === false) {
+      return res.status(400).json({ success: false, message: 'Cannot deactivate your own account' });
+    }
+
+    const oldDepartment = user.department;
+    const cleanDepartment = department !== undefined ? department.trim() : undefined;
+
+    if (name !== undefined) user.name = name;
+    if (employeeId !== undefined) user.employeeId = employeeId;
+    if (fatherName !== undefined) user.fatherName = fatherName;
+    if (motherName !== undefined) user.motherName = motherName;
+    if (alternateMobile !== undefined) user.alternateMobile = alternateMobile;
+    if (aadhaar !== undefined) user.aadhaar = aadhaar;
+    if (cleanDepartment !== undefined) user.department = cleanDepartment;
+    if (email !== undefined) user.email = email;
+    if (role !== undefined) user.role = role;
+    if (designation !== undefined) user.designation = designation;
+    if (phone !== undefined) user.phone = phone;
+    if (sector !== undefined) user.sector = sector;
+    if (employmentType !== undefined) user.employmentType = employmentType;
+    if (joiningDate !== undefined) user.joiningDate = joiningDate || null;
+    if (experienceYears !== undefined) user.experienceYears = Number(experienceYears);
+    if (isActive !== undefined) user.isActive = isActive;
+    if (password) user.password = password;
+
+    await user.save();
+
+    // Sync team modifications if department changes
+    if (cleanDepartment !== undefined && cleanDepartment !== oldDepartment) {
+      if (oldDepartment) {
+        await Team.findOneAndUpdate(
+          { name: { $regex: new RegExp(`^\\s*${oldDepartment.trim()}\\s*$`, 'i') } },
+          { $pull: { members: user._id } }
+        );
+      }
+      if (teamId) {
+        await Team.findByIdAndUpdate(teamId, { $addToSet: { members: user._id } });
+      } else if (cleanDepartment) {
+        await Team.findOneAndUpdate(
+          { name: { $regex: new RegExp(`^\\s*${cleanDepartment}\\s*$`, 'i') } },
+          { $addToSet: { members: user._id } }
+        );
+      }
+    }
+
+    const updatedUser = user.toObject();
+    delete updatedUser.password;
+
+    res.json({ success: true, data: updatedUser });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// DELETE /api/users/:id
+router.delete('/:id', async (req, res) => {
+  try {
+    if (req.params.id === req.user.id.toString()) {
+      return res.status(400).json({ success: false, message: 'Cannot delete your own account' });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (user.department) {
+      await Team.findOneAndUpdate(
+        { name: { $regex: new RegExp(`^\\s*${user.department.trim()}\\s*$`, 'i') } },
+        { $pull: { members: user._id } }
+      );
+    }
+
+    await user.deleteOne();
+    res.json({ success: true, message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+module.exports = router;
