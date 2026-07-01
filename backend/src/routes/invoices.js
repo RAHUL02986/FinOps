@@ -419,10 +419,23 @@ router.post('/:id/send', requireElevated, async (req, res) => {
 
     const recipientEmail = req.body.email || invoice.client.email;
 
-    // Validate email
+    // Validate recipient email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(recipientEmail))
       return res.status(400).json({ success: false, message: 'Invalid recipient email' });
+
+    // Optional CC support
+    const ccInput = req.body.cc;
+    let ccList = undefined;
+    if (ccInput) {
+      if (Array.isArray(ccInput)) ccList = ccInput;
+      else if (typeof ccInput === 'string') ccList = ccInput.split(',').map(s => s.trim()).filter(Boolean);
+      else return res.status(400).json({ success: false, message: 'Invalid cc format' });
+
+      for (const e of ccList) {
+        if (!emailRegex.test(e)) return res.status(400).json({ success: false, message: `Invalid cc email: ${e}` });
+      }
+    }
 
     const html = buildInvoiceHtml(invoice);
     const smtpResult = await createTransporter();
@@ -479,19 +492,24 @@ router.post('/:id/send', requireElevated, async (req, res) => {
         }
       }
 
-      await transporter.sendMail({
+      const mailOpts = {
         from: `"${fromName}" <${fromEmail}>`,
         to: recipientEmail,
         subject: `Invoice ${invoice.invoiceNumber} from ${fromName}`,
         html,
         attachments,
-      });
+      };
+
+      if (ccList && ccList.length > 0) mailOpts.cc = ccList;
+
+      await transporter.sendMail(mailOpts);
     }
     // If no SMTP configured, still mark as sent (client receives via other means)
 
     invoice.status = 'sent';
     invoice.sentAt = new Date();
     invoice.sentTo = recipientEmail;
+    if (ccList) invoice.sentCc = Array.isArray(ccList) ? ccList : [ccList];
     await invoice.save();
 
     res.json({

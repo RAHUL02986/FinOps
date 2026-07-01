@@ -190,6 +190,20 @@ router.post('/:id/send', authorize('superadmin', 'admin', 'manager'), async (req
     const clientEmail = req.body.email || proposal.client.email;
     if (!clientEmail) return res.status(400).json({ message: 'Client email is required' });
 
+    // Optional CC support: accept string or array
+    const ccInput = req.body.cc;
+    let ccList = undefined;
+    if (ccInput) {
+      if (Array.isArray(ccInput)) ccList = ccInput;
+      else if (typeof ccInput === 'string') ccList = ccInput.split(',').map(s => s.trim()).filter(Boolean);
+      else return res.status(400).json({ message: 'Invalid cc format' });
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      for (const e of ccList) {
+        if (!emailRegex.test(e)) return res.status(400).json({ message: `Invalid cc email: ${e}` });
+      }
+    }
+
     // Fallback checks matching invoice rules
     let smtpConfig = await SmtpConfig.findOne({ type: 'invoice', isActive: true });
     if (!smtpConfig) smtpConfig = await SmtpConfig.findOne({ type: 'system', isActive: true });
@@ -249,19 +263,36 @@ router.post('/:id/send', authorize('superadmin', 'admin', 'manager'), async (req
         </table>`;
     }
 
-    const watermarkStyle = proposal.showWatermark && proposal.watermarkText ? `position:relative;` : '';
-    const watermarkOverlay = proposal.showWatermark && proposal.watermarkText
-      ? `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-45deg);font-size:80px;font-weight:bold;color:${accentColor};opacity:${proposal.watermarkOpacity || 0.06};pointer-events:none;white-space:nowrap;z-index:0;">${proposal.watermarkText}</div>` : '';
+    // Build a centered SVG background watermark (more compatible with email clients)
+    const escapeXml = (str) => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    let watermarkBgStyle = '';
+    if (proposal.showWatermark && proposal.watermarkText) {
+      const text = escapeXml(proposal.watermarkText);
+      const opacity = proposal.watermarkOpacity || 0.06;
+      const fontSize = 80;
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='400'><g transform='translate(600,200) rotate(-45)'><text x='0' y='0' text-anchor='middle' dominant-baseline='middle' font-size='${fontSize}' font-family='Arial, Helvetica, sans-serif' fill='${accentColor}' fill-opacity='${opacity}' font-weight='bold'>${text}</text></g></svg>`;
+      const dataUri = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+      watermarkBgStyle = `background-image:url("${dataUri}");background-repeat:no-repeat;background-position:center center;background-size:60%;`;
+    }
+
+    // Fallback image html (some clients ignore div background-image)
+    let fallbackImgHtml = '';
+    if (watermarkBgStyle) {
+      // reuse the same data URI used in background
+      const svgText = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='400'><g transform='translate(600,200) rotate(-45)'><text x='0' y='0' text-anchor='middle' dominant-baseline='middle' font-size='80' font-family='Arial, Helvetica, sans-serif' fill='${accentColor}' fill-opacity='${proposal.watermarkOpacity || 0.06}' font-weight='bold'>${escapeXml(proposal.watermarkText)}</text></g></svg>`);
+      const imgData = `data:image/svg+xml;utf8,${svgText}`;
+      fallbackImgHtml = `<div style="text-align:center;margin-top:8px;margin-bottom:8px;"><img src="${imgData}" alt="" style="width:60%;max-width:420px;opacity:${proposal.watermarkOpacity || 0.06};transform:rotate(-45deg);display:block;margin:0 auto;" /></div>`;
+    }
 
     const html = `
-      <div style="max-width:800px;margin:0 auto;font-family:Arial,sans-serif;background:${bgColor};color:${textColor};${watermarkStyle}">
-        ${watermarkOverlay}
-        <div style="background:${headerBg};color:${headerText};padding:40px 30px;border-radius:8px 8px 0 0;position:relative;z-index:1;">
+      <div style="max-width:700px;margin:0 auto;font-family:Arial,sans-serif;background:${bgColor};color:${textColor};${watermarkBgStyle}">
+        ${fallbackImgHtml}
+        <div style="background:${headerBg};color:${headerText};padding:40px 30px;border-radius:8px 8px 0 0;position:relative;z-index:2;">
           ${proposal.company.logo ? `<img src="cid:companyLogo" style="max-height:60px;margin-bottom:15px;" />` : ''}
           <h1 style="margin:0;font-size:28px;">${proposal.title}</h1>
           <p style="margin:8px 0 0;opacity:0.9;">${proposal.proposalNumber} | ${new Date(proposal.issueDate).toLocaleDateString()}</p>
         </div>
-        <div style="padding:30px;position:relative;z-index:1;">
+        <div style="padding:30px;position:relative;z-index:2;">
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:30px;">
             <tr>
               <td valign="top" width="50%" style="padding-right:10px;">
@@ -285,7 +316,7 @@ router.post('/:id/send', authorize('superadmin', 'admin', 'manager'), async (req
           ${proposal.terms ? `<div style="margin-top:30px;padding-top:20px;border-top:1px solid #eee;"><h4 style="color:${accentColor};">Terms & Conditions</h4><p style="color:#666;line-height:1.6;">${proposal.terms}</p></div>` : ''}
           ${proposal.notes ? `<div style="margin-top:15px;"><h4 style="color:${accentColor};">Notes</h4><p style="color:#666;line-height:1.6;">${proposal.notes}</p></div>` : ''}
         </div>
-        <div style="background:${headerBg};color:${headerText};padding:15px 30px;text-align:center;border-radius:0 0 8px 8px;font-size:13px;">
+        <div style="background:${headerBg};color:${headerText};padding:15px 30px;text-align:center;border-radius:0 0 8px 8px;font-size:13px;position:relative;z-index:2;">
           ${proposal.company.name || ''} ${proposal.company.website ? `| ${proposal.company.website}` : ''}
         </div>
       </div>`;
@@ -296,6 +327,8 @@ router.post('/:id/send', authorize('superadmin', 'admin', 'manager'), async (req
       subject: `Proposal: ${proposal.title} (${proposal.proposalNumber})`,
       html
     };
+
+    if (ccList && ccList.length > 0) mailOptions.cc = ccList;
 
     // Safely look up asset path from execution root
     if (proposal.company.logo) {
@@ -315,6 +348,7 @@ router.post('/:id/send', authorize('superadmin', 'admin', 'manager'), async (req
     proposal.status = 'sent';
     proposal.sentAt = new Date();
     proposal.sentTo = clientEmail;
+    if (ccList) proposal.sentCc = Array.isArray(ccList) ? ccList : [ccList];
     await proposal.save();
 
     res.json({ message: 'Proposal sent successfully', proposal });
