@@ -170,9 +170,10 @@ export const payrollAPI = {
   createRun: (data) => api.post('/payroll/runs', data),
   completeRun: (id) => api.post(`/payroll/runs/${id}/complete`),
   deleteRun: (id) => api.delete(`/payroll/runs/${id}`),
-  emailSlips: (id) => api.post(`/payroll/runs/${id}/email-slips`),
+  emailSlips: (id, slipIds) => api.post(`/payroll/runs/${id}/email-slips`, slipIds ? { slipIds } : {}),
   getSlips: (params) => api.get('/payroll/slips', { params }),
   updateSlip: (id, data) => api.put(`/payroll/slips/${id}`, data),
+  completeSlips: (slipIds) => api.post('/payroll/slips/complete', { slipIds }),
   createSlip: (data) => api.post('/payroll/slips', data),
   getMissingSlips: (month, year) => api.get('/payroll/missing-slips', { params: { month, year } }),
 };
@@ -197,6 +198,7 @@ export const FILE_BASE = (process.env.NEXT_PUBLIC_API_URL ).replace(/\/api$/, ''
 
 export const transactionsAPI = {
   getAll: (params) => api.get('/transactions', { params }),
+  getOne: (id) => api.get(`/transactions/${id}`),
   create: (data) => api.post('/transactions', data),
   update: (id, data) => api.put(`/transactions/${id}`, data),
   remove: (id) => api.delete(`/transactions/${id}`),

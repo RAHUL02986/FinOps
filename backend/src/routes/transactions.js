@@ -57,6 +57,21 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/transactions/:id
+router.get('/:id', async (req, res) => {
+  try {
+    const txn = await Transaction.findById(req.params.id)
+      .populate('user', 'name email role')
+      .populate('account', 'name bankName')
+      .populate('team', 'name')
+      .populate('employee', 'name email');
+    if (!txn) return res.status(404).json({ success: false, message: 'Transaction not found' });
+    res.json(txn);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // POST /api/transactions
 router.post(
   '/',

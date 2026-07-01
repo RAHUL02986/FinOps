@@ -130,6 +130,32 @@ const UserSchema = new mongoose.Schema({
   { timestamps: true }
 );
 
+UserSchema.statics.generateEmployeeId = async function () {
+  const prefix = 'CMX-EMP-';
+  const latest = await this.findOne({ employeeId: { $regex: `^${prefix}\\d+$` } })
+    .sort({ employeeId: -1 })
+    .select('employeeId')
+    .lean();
+
+  let nextNumber = 1;
+  if (latest && latest.employeeId) {
+    const match = latest.employeeId.match(new RegExp(`^${prefix}(\\d+)$`));
+    if (match) {
+      nextNumber = parseInt(match[1], 10) + 1;
+    }
+  }
+
+  const suffix = String(nextNumber).padStart(6, '0');
+  return `${prefix}${suffix}`;
+};
+
+UserSchema.pre('validate', async function (next) {
+  if (this.role === 'employee' && !this.employeeId) {
+    this.employeeId = await this.constructor.generateEmployeeId();
+  }
+  next();
+});
+
 // Hash password before saving
 UserSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();

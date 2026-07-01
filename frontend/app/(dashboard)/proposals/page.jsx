@@ -58,6 +58,7 @@ export default function ProposalsPage() {
   const [previewMode, setPreviewMode] = useState(false);
   const [filter, setFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [sendingId, setSendingId] = useState(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -146,11 +147,38 @@ export default function ProposalsPage() {
 
   // ── Send proposal ──
   const handleSend = async (id) => {
+    setSendingId(id);
     try {
       await proposalsAPI.send(id, {});
       toast.success('Proposal sent to client!');
       loadData();
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed to send'); }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send');
+    }
+    setSendingId(null);
+  };
+
+  const handleSaveAndSend = async (e) => {
+    if (e?.preventDefault) e.preventDefault();
+    setLoading(true);
+    try {
+      let proposalId = editingId;
+      if (editingId) {
+        await proposalsAPI.update(editingId, form);
+      } else {
+        const created = await proposalsAPI.create(form);
+        proposalId = created.data._id;
+      }
+      await proposalsAPI.send(proposalId, {});
+      toast.success('Proposal saved and sent to client!');
+      setShowForm(false);
+      setEditingId(null);
+      setForm({ ...emptyProposal });
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save and send');
+    }
+    setLoading(false);
   };
 
   // ── Delete proposal ──
@@ -338,7 +366,16 @@ export default function ProposalsPage() {
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
                       <button onClick={() => handleEdit(p)} className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg">Edit</button>
-                      {p.status === 'draft' && <button onClick={() => handleSend(p._id)} className="px-3 py-1.5 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-lg">Send</button>}
+                      {(p.status === 'draft' || ['sent', 'viewed'].includes(p.status)) && (
+                        <button
+                          onClick={() => handleSend(p._id)}
+                          disabled={sendingId === p._id}
+                          className="px-3 py-1.5 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-lg disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {sendingId === p._id ? <span className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" /> : null}
+                          {sendingId === p._id ? (p.status === 'draft' ? 'Sending…' : 'Resending…') : (p.status === 'draft' ? 'Send' : 'Resend')}
+                        </button>
+                      )}
                       <button onClick={() => handleDelete(p._id)} className="px-3 py-1.5 text-sm bg-red-50 text-red-600 hover:bg-red-100 rounded-lg">Delete</button>
                     </div>
                   </div>
@@ -547,8 +584,11 @@ export default function ProposalsPage() {
 
               <div className="flex gap-3 justify-end">
                 <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="px-6 py-2.5 bg-gray-100 rounded-lg text-sm font-medium hover:bg-gray-200">Cancel</button>
-                <button type="submit" className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
-                  {editingId ? 'Update Proposal' : 'Create Proposal'}
+                <button type="button" onClick={handleSaveAndSend} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-60" disabled={loading}>
+                  {loading ? (editingId ? 'Saving & Sending…' : 'Creating & Sending…') : (editingId ? 'Save & Send' : 'Create & Send')}
+                </button>
+                <button type="submit" className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-60" disabled={loading}>
+                  {loading ? (editingId ? 'Updating…' : 'Creating…') : (editingId ? 'Update Proposal' : 'Create Proposal')}
                 </button>
               </div>
             </form>

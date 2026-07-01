@@ -262,20 +262,22 @@ router.post('/:id/send', authorize('superadmin', 'admin', 'manager'), async (req
           <p style="margin:8px 0 0;opacity:0.9;">${proposal.proposalNumber} | ${new Date(proposal.issueDate).toLocaleDateString()}</p>
         </div>
         <div style="padding:30px;position:relative;z-index:1;">
-          <div style="display:flex;justify-content:space-between;margin-bottom:30px;">
-            <div>
-              <h4 style="color:${accentColor};margin-bottom:5px;">From</h4>
-              <p style="margin:2px 0;">${proposal.company.name || ''}</p>
-              <p style="margin:2px 0;">${proposal.company.email || ''}</p>
-              <p style="margin:2px 0;">${proposal.company.phone || ''}</p>
-            </div>
-            <div style="text-align:right;">
-              <h4 style="color:${accentColor};margin-bottom:5px;">To</h4>
-              <p style="margin:2px 0;">${proposal.client.name}</p>
-              <p style="margin:2px 0;">${proposal.client.company || ''}</p>
-              <p style="margin:2px 0;">${proposal.client.email}</p>
-            </div>
-          </div>
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:30px;">
+            <tr>
+              <td valign="top" width="50%" style="padding-right:10px;">
+                <h4 style="color:${accentColor};margin-bottom:5px;">From</h4>
+                <p style="margin:2px 0;">${proposal.company.name || ''}</p>
+                <p style="margin:2px 0;">${proposal.company.email || ''}</p>
+                <p style="margin:2px 0;">${proposal.company.phone || ''}</p>
+              </td>
+              <td valign="top" width="50%" style="padding-left:10px;text-align:right;">
+                <h4 style="color:${accentColor};margin-bottom:5px;">To</h4>
+                <p style="margin:2px 0;">${proposal.client.name}</p>
+                <p style="margin:2px 0;">${proposal.client.company || ''}</p>
+                <p style="margin:2px 0;">${proposal.client.email}</p>
+              </td>
+            </tr>
+          </table>
           ${proposal.description ? `<p style="font-size:16px;line-height:1.6;margin-bottom:20px;">${proposal.description}</p>` : ''}
           ${sectionsHtml}
           ${itemsHtml}

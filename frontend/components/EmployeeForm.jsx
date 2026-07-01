@@ -69,10 +69,9 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
       <input
         name="employeeId"
         value={form.employeeId}
-        onChange={handleChange}
-        placeholder="Employee ID"
-        className="input col-span-1"
-        required
+        placeholder={employee ? 'Employee ID' : 'Auto-generated CMX–EMP–...'}
+        className="input col-span-1 bg-gray-100"
+        readOnly
       />
       <input
         name="name"

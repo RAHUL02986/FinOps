@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from 'next/navigation';
 import { expensesAPI, incomeAPI, accountsAPI, teamsAPI, usersAPI, transactionsAPI } from "../../../lib/api";
 import { FaArrowDown, FaArrowUp, FaExchangeAlt, FaCheckCircle, FaClock, FaTimesCircle, FaEllipsisV } from 'react-icons/fa';
 import { useAuth } from "../../../context/AuthContext";
@@ -8,7 +9,7 @@ import Link from "next/link";
 
 const STATUS_OPTIONS = ["All", "Approved", "Pending", "Rejected", "Draft"];
 
-function TransactionRow({ txn, user, onAction }) {
+function TransactionRow({ txn, user, onAction, highlighted }) {
   const [open, setOpen] = useState(false);
   const isAdmin = user?.role === 'superadmin' || user?.role === 'admin';
   
@@ -21,7 +22,7 @@ function TransactionRow({ txn, user, onAction }) {
     : <FaTimesCircle className="inline mr-1 text-gray-400" />;
 
   return (
-    <tr className="even:bg-gray-50 hover:bg-indigo-50 transition-colors group">
+    <tr id={highlighted ? 'highlighted-txn' : undefined} className={`even:bg-gray-50 hover:bg-indigo-50 transition-colors group ${highlighted ? 'animate-pulse ring-2 ring-indigo-300 bg-indigo-50' : ''}`}>
       <td className="py-3 px-4 whitespace-nowrap text-gray-700">{new Date(txn.date).toLocaleDateString()}</td>
       <td className="py-3 px-4 font-semibold">
         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold border ${txn.type === "expense" ? "bg-red-50 text-red-600 border-red-200" : txn.type === 'income' ? "bg-green-50 text-green-600 border-green-200" : "bg-blue-50 text-blue-600 border-blue-200"}`}>{typeIcon}{txn.type.charAt(0).toUpperCase() + txn.type.slice(1)}</span>
@@ -58,6 +59,8 @@ function TransactionRow({ txn, user, onAction }) {
 
 export default function TransactionsPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const highlightParam = searchParams?.get ? searchParams.get('highlight') : null;
   const [accounts, setAccounts] = useState([]);
   const [accountFilter, setAccountFilter] = useState('All');
   const [transactions, setTransactions] = useState([]);
@@ -68,6 +71,7 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [highlightedId, setHighlightedId] = useState(null);
   const PAGE_SIZE = 10;
 
   async function fetchTransactions(pageNum = 1, status = statusFilter, account = accountFilter) {
@@ -83,6 +87,36 @@ export default function TransactionsPage() {
   useEffect(() => {
     fetchTransactions(page, statusFilter, accountFilter);
   }, [page, statusFilter, accountFilter]);
+
+  // Handle highlight param on initial load or when search params change
+  useEffect(() => {
+    if (!highlightParam) return;
+    (async () => {
+      try {
+        const res = await transactionsAPI.getOne(highlightParam);
+        const txn = res.data;
+        if (!txn) return;
+
+        // Ensure the highlighted transaction appears at the top
+        setTransactions(prev => {
+          const filtered = (prev || []).filter(t => t._id !== txn._id);
+          return [txn, ...filtered];
+        });
+        setHighlightedId(txn._id);
+
+        // Auto-scroll to highlighted row after DOM update
+        setTimeout(() => {
+          const el = document.getElementById('highlighted-txn');
+          if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+
+        // Remove highlight after a short time
+        setTimeout(() => setHighlightedId(null), 6000);
+      } catch (err) {
+        // ignore
+      }
+    })();
+  }, [highlightParam]);
 
   useEffect(() => {
     async function fetchAccounts() {
@@ -179,7 +213,7 @@ export default function TransactionsPage() {
                 <td colSpan={6} className="text-center py-10 text-gray-400">No transactions found.</td>
               </tr>
             ) : (
-              transactions.map(txn => <TransactionRow key={txn._id} txn={txn} user={user} onAction={handleAction} />)
+              transactions.map(txn => <TransactionRow key={txn._id} txn={txn} user={user} onAction={handleAction} highlighted={highlightedId === txn._id} />)
             )}
           </tbody>
         </table>

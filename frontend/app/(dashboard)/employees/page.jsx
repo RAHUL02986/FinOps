@@ -109,18 +109,18 @@ export default function EmployeesPage() {
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-2 text-left font-medium text-gray-600">Name</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-600">Emp ID</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-600">Father's Name</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-600">Mother's Name</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-600">Alt. Mobile</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-600">Aadhaar</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-600">Designation</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-600">Email</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-600">Phone</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-600">Joined</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-600">Status</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-600">Actions</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Emp ID</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Father's Name</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Name</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Mother's Name</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Alt. Mobile</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Aadhaar</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Designation</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Email</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Phone</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Joined</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Status</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -131,17 +131,17 @@ export default function EmployeesPage() {
                   ) : (
                     employees.map((emp) => (
                       <tr key={emp._id} className="border-t hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium">{emp.name}</td>
-                        <td className="px-4 py-3">{emp.employeeId || emp._id}</td>
-                        <td className="px-4 py-3">{emp.fatherName || '-'}</td>
-                        <td className="px-4 py-3">{emp.motherName || '-'}</td>
-                        <td className="px-4 py-3">{emp.alternateMobile || '-'}</td>
-                        <td className="px-4 py-3">{emp.aadhaar || '-'}</td>
-                        <td className="px-4 py-3">{emp.designation}</td>
-                        <td className="px-4 py-3">{emp.email}</td>
-                        <td className="px-4 py-3">{emp.phone || '-'}</td>
-                        <td className="px-4 py-3">{emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString() : '-'}</td>
-                        <td className="px-4 py-3">
+                        <td className="whitespace-nowrap px-4 py-3 font-medium">{emp.name}</td>
+                        <td className="whitespace-nowrap px-4 py-3">{emp.employeeId || emp._id}</td>
+                        <td className="whitespace-nowrap px-4 py-3">{emp.fatherName || '-'}</td>
+                        <td className="whitespace-nowrap px-4 py-3">{emp.motherName || '-'}</td>
+                        <td className="whitespace-nowrap px-4 py-3">{emp.alternateMobile || '-'}</td>
+                        <td className="whitespace-nowrap px-4 py-3">{emp.aadhaar || '-'}</td>
+                        <td className="whitespace-nowrap px-4 py-3">{emp.designation}</td>
+                        <td className="whitespace-nowrap px-4 py-3">{emp.email}</td>
+                        <td className="whitespace-nowrap px-4 py-3">{emp.phone || '-'}</td>
+                        <td className="whitespace-nowrap px-4 py-3">{emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString() : '-'}</td>
+                        <td className="whitespace-nowrap px-4 py-3">
                           {emp.isActive !== false ? (
                             <span className="px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-semibold">Active</span>
                           ) : (

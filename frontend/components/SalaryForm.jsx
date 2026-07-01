@@ -1,8 +1,9 @@
+"use client";
 import { useState, useEffect } from "react";
 import { payrollAPI, usersAPI } from "../lib/api";
 import toast from "react-hot-toast";
 
-export default function SalaryForm({ employee, onClose, onSaved }) {
+export default function SalaryForm({ employee, slip, onClose, onSaved }) {
     const [hrName, setHrName] = useState("");
   const [form, setForm] = useState({
     effectiveFrom: new Date().toISOString().slice(0, 10),
@@ -45,63 +46,99 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
       }
     }
     fetchHR();
+
     async function fetchData() {
-      if (!employee?._id) return;
+      if (!employee && !slip) return;
+      const userId = employee?._id || employee?.id || slip?.employee;
+      if (!userId) return;
+
+      setForm(f => ({
+        ...f,
+        employeeId: slip?.employeeId || employee?.employeeId || userId || '',
+        employeeName: slip?.employeeName || employee?.name || employee?.employeeName || '',
+        department: slip?.department || employee?.department || '',
+        designation: slip?.designation || employee?.designation || '',
+        fatherName: slip?.fatherName || employee?.fatherName || '',
+        motherName: slip?.motherName || employee?.motherName || '',
+      }));
+
       try {
-        const empRes = await usersAPI.getById(employee._id);
-        const empData = empRes.data.data;
-        // Fetch work location from backend API (correct endpoint)
-        fetch('/api/company')
-          .then(res => res.json())
-          .then(company => {
+        const empRes = await usersAPI.getById(userId);
+        const empData = empRes.data.data || {};
+        const companyRes = await fetch('/api/company');
+        const company = companyRes.ok ? await companyRes.json() : {};
+
+        setForm(f => ({
+          ...f,
+          employeeId: empData.employeeId || slip?.employeeId || userId || '',
+          employeeName: empData.name || slip?.employeeName || employee?.name || employee?.employeeName || '',
+          department: empData.department || slip?.department || employee?.department || '',
+          designation: empData.designation || slip?.designation || employee?.designation || '',
+          workLocation: company.workLocation || slip?.workLocation || employee?.workLocation || '',
+          fatherName: empData.fatherName || slip?.fatherName || employee?.fatherName || '',
+          motherName: empData.motherName || slip?.motherName || employee?.motherName || '',
+          facilities: Array.isArray(empData.facilities) && empData.facilities.length > 0 ? empData.facilities : (Array.isArray(slip?.facilities) && slip.facilities.length > 0 ? slip.facilities : [{ head: '', cost: '', remarks: '' }]),
+          earnings: Array.isArray(empData.earnings) && empData.earnings.length > 0 ? empData.earnings : (Array.isArray(slip?.earnings) && slip.earnings.length > 0 ? slip.earnings : [{ component: '', amount: '', remarks: '' }]),
+          extraDeductions: Array.isArray(empData.extraDeductions) && empData.extraDeductions.length > 0 ? empData.extraDeductions : (Array.isArray(slip?.extraDeductions) && slip.extraDeductions.length > 0 ? slip.extraDeductions : [{ component: '', amount: '', remarks: '' }]),
+        }));
+      } catch (err) {
+        // ignore error, preserve passed employee values
+      }
+
+      if (slip) {
+        setForm(f => ({
+          ...f,
+          employeeId: slip.employeeId || f.employeeId,
+          employeeName: slip.employeeName || f.employeeName,
+          department: slip.department || f.department,
+          designation: slip.designation || f.designation,
+          workLocation: slip.workLocation || f.workLocation,
+          fatherName: slip.fatherName || f.fatherName,
+          motherName: slip.motherName || f.motherName,
+          earnings: Array.isArray(slip.earnings) && slip.earnings.length > 0 ? slip.earnings : f.earnings,
+          extraDeductions: Array.isArray(slip.extraDeductions) && slip.extraDeductions.length > 0 ? slip.extraDeductions : f.extraDeductions,
+          facilities: Array.isArray(slip.facilities) && slip.facilities.length > 0 ? slip.facilities : f.facilities,
+          paymentDetails: slip.paymentDetails || f.paymentDetails,
+          authorizedBy: slip.authorizedBy || f.authorizedBy,
+          notes1: slip.notes1 || f.notes1,
+          notes2: slip.notes2 || f.notes2,
+          basicSalary: slip.basicSalary || 0,
+          hra: slip.hra || 0,
+          allowances: slip.allowances || 0,
+          bonus: slip.bonus || 0,
+          notes: slip.notes || f.notes,
+          reason: slip.reason || f.reason,
+          effectiveFrom: slip.effectiveFrom ? slip.effectiveFrom.slice(0, 10) : f.effectiveFrom,
+        }));
+      } else {
+        // Fetch latest salary slip for other fields when creating a new slip
+        try {
+          const res = await payrollAPI.getSlips({ employee: userId });
+          const slips = res.data;
+          if (Array.isArray(slips) && slips.length > 0) {
+            const latest = slips.reduce((a, b) => {
+              if (a.year > b.year) return a;
+              if (a.year < b.year) return b;
+              return a.month >= b.month ? a : b;
+            });
             setForm(f => ({
               ...f,
-              employeeId: empData.employeeId || '',
-              employeeName: empData.name || '',
-              department: empData.department || '',
-              designation: empData.designation || '',
-              workLocation: company.workLocation || '',
-              fatherName: empData.fatherName || '',
-              motherName: empData.motherName || '',
-              facilities: Array.isArray(empData.facilities) && empData.facilities.length > 0 ? empData.facilities : [{ head: '', cost: '', remarks: '' }],
-              earnings: Array.isArray(empData.earnings) && empData.earnings.length > 0 ? empData.earnings : [{ component: '', amount: '', remarks: '' }],
-              extraDeductions: Array.isArray(empData.extraDeductions) && empData.extraDeductions.length > 0 ? empData.extraDeductions : [{ component: '', amount: '', remarks: '' }],
+              basicSalary: latest.basicSalary || 0,
+              hra: latest.hra || 0,
+              allowances: latest.allowances || 0,
+              bonus: latest.bonus || 0,
+              notes: latest.notes || "",
+              reason: latest.reason || "Joining",
+              effectiveFrom: latest.effectiveFrom ? latest.effectiveFrom.slice(0, 10) : f.effectiveFrom,
             }));
-          });
-      } catch (err) {
-        // ignore error, use default
-      }
-      // Fetch latest salary slip for other fields
-      try {
-        const res = await payrollAPI.getSlips({ employee: employee._id });
-        const slips = res.data;
-        if (Array.isArray(slips) && slips.length > 0) {
-          // Find the latest slip by year/month
-          const latest = slips.reduce((a, b) => {
-            if (a.year > b.year) return a;
-            if (a.year < b.year) return b;
-            return a.month >= b.month ? a : b;
-          });
-          setForm(f => ({
-            ...f,
-            basicSalary: latest.basicSalary || 0,
-            hra: latest.hra || 0,
-            allowances: latest.allowances || 0,
-            bonus: latest.bonus || 0,
-            deductions: latest.deductions || 0,
-            notes: latest.notes || "",
-            reason: latest.reason || "Joining",
-            effectiveFrom: latest.effectiveFrom ? latest.effectiveFrom.slice(0, 10) : f.effectiveFrom,
-          }));
+          }
+        } catch (err) {
+          // ignore error, use default
         }
-      } catch (err) {
-        // ignore error, use default
       }
     }
     fetchData();
-    // Only run on mount or when employee changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employee?._id]);
+  }, [employee, slip]);
   const [loading, setLoading] = useState(false);
 
 
@@ -146,10 +183,10 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
       const date = new Date(form.effectiveFrom);
       const month = date.getMonth() + 1;
       const year = date.getFullYear();
-      await payrollAPI.createSlip({
-        employee: employee._id,
+      const payload = {
+        employee: employee?._id || employee?.id || slip?.employee,
         employeeName: form.employeeName,
-        employeeEmail: employee.email,
+        employeeEmail: employee?.email || slip?.employeeEmail,
         employeeId: form.employeeId,
         department: form.department,
         designation: form.designation,
@@ -175,8 +212,14 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
         reason: form.reason,
         effectiveFrom: form.effectiveFrom,
         notes: form.notes,
-      });
-      toast.success("Salary saved");
+      };
+      if (slip?._id) {
+        await payrollAPI.updateSlip(slip._id, payload);
+        toast.success("Salary updated");
+      } else {
+        await payrollAPI.createSlip(payload);
+        toast.success("Salary saved");
+      }
       onSaved?.();
       onClose();
     } catch (err) {
@@ -208,8 +251,8 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
           name="designation"
           value={form.designation}
           onChange={handleChange}
-          className={`input w-full${form.reason === 'Promotion' ? '' : ' bg-gray-100'}`}
-          readOnly={form.reason !== 'Promotion'}
+          className="input w-full bg-gray-100"
+          readOnly
         />
       </div>
       <div className="col-span-1">
@@ -321,7 +364,7 @@ export default function SalaryForm({ employee, onClose, onSaved }) {
       </div>
       <div className="col-span-2 flex justify-end gap-2 mt-4">
         <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
-        <button type="submit" className="btn-primary" disabled={loading}>{loading ? "Saving..." : "Save Salary"}</button>
+        <button type="submit" className="btn-primary" disabled={loading}>{loading ? (slip?._id ? "Updating..." : "Saving...") : (slip?._id ? "Update Salary" : "Save Salary")}</button>
       </div>
     </form>
     </>

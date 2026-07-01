@@ -4,6 +4,7 @@ const nodemailer = require('nodemailer');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const Invoice = require('../models/Invoice');
 const { protect } = require('../middleware/auth');
@@ -77,6 +78,12 @@ function buildInvoiceHtml(invoice) {
     )
     .join('');
 
+  const companyLogoUrl = invoice.company?.logo || '';
+  const isRemoteLogo = /^https?:\/\//i.test(companyLogoUrl) || companyLogoUrl.startsWith('data:');
+  const logoHtml = companyLogoUrl
+    ? `<img src="${isRemoteLogo ? companyLogoUrl : 'cid:companyLogo'}" alt="${invoice.company?.name || 'Logo'}" style="max-height:54px;max-width:180px;margin-bottom:10px;border-radius:6px;" />`
+    : '';
+
   let totalsHtml = `
     <tr>
       <td colspan="3" style="padding:8px 12px;text-align:right;color:#6b7280;font-size:13px;">Subtotal</td>
@@ -115,13 +122,13 @@ function buildInvoiceHtml(invoice) {
     <div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:36px 40px;">
       <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
         <td style="vertical-align:top;">
-          ${invoice.company?.logo ? `<img src="cid:companyLogo" alt="${invoice.company?.name || 'Logo'}" style="max-height:54px;max-width:180px;margin-bottom:10px;border-radius:6px;" />` : ''}
+          ${logoHtml}
           <h1 style="margin:0;color:#fff;font-size:28px;font-weight:800;letter-spacing:-0.5px;">INVOICE</h1>
           <p style="margin:4px 0 0;color:rgba(255,255,255,0.75);font-size:14px;">${invoice.invoiceNumber}</p>
         </td>
         <td style="vertical-align:top;text-align:right;">
           <p style="margin:0;color:#fff;font-weight:700;font-size:16px;">${invoice.company?.name || 'Your Company'}</p>
-          ${invoice.company?.email ? `<p style="margin:2px 0;color:rgba(255,255,255,0.8);font-size:13px;">${invoice.company.email}</p>` : ''}
+          ${invoice.company?.email ? `<p style="margin:2px 0;font-size:13px;"><a href="mailto:${invoice.company.email}" style="color:#ffffff !important;text-decoration:none;">${invoice.company.email}</a></p>` : ''}
           ${invoice.company?.phone ? `<p style="margin:2px 0;color:rgba(255,255,255,0.8);font-size:13px;">${invoice.company.phone}</p>` : ''}
         </td>
       </tr></table>
@@ -428,12 +435,24 @@ router.post('/:id/send', requireElevated, async (req, res) => {
       const fromName = invoice.company?.name || smtpResult.fromName || process.env.COMPANY_NAME || 'Billing';
       const fromEmail = smtpResult.fromEmail || process.env.SMTP_USER || process.env.EMAIL_USER;
 
-      // Build attachments — embed logo as inline CID if present
+      // Build attachments — embed the logo as inline CID where possible
       const attachments = [];
-      if (invoice.company?.logo) {
-        const logoFilePath = path.join(__dirname, '..', '..', 'uploads', invoice.company.logo);
+      const companyLogoUrl = invoice.company?.logo || '';
+      const isRemoteLogo = /^https?:\/\//i.test(companyLogoUrl) || companyLogoUrl.startsWith('data:');
+
+      if (companyLogoUrl && !isRemoteLogo) {
+        const relativeLogoPath = companyLogoUrl.startsWith('/') ? companyLogoUrl.substring(1) : companyLogoUrl;
+        let logoFilePath;
+        if (relativeLogoPath.startsWith('uploads/')) {
+          logoFilePath = path.join(process.cwd(), relativeLogoPath);
+        } else if (relativeLogoPath.startsWith('logos/')) {
+          logoFilePath = path.join(process.cwd(), 'uploads', relativeLogoPath);
+        } else {
+          logoFilePath = path.join(process.cwd(), 'uploads', relativeLogoPath);
+        }
+
         if (fs.existsSync(logoFilePath)) {
-          const ext = path.extname(logoFilePath).toLowerCase().replace('.', '');
+          const ext = path.extname(logoFilePath).toLowerCase().replace('.', '') || 'png';
           const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', svg: 'image/svg+xml' };
           attachments.push({
             filename: `logo.${ext}`,
@@ -441,6 +460,22 @@ router.post('/:id/send', requireElevated, async (req, res) => {
             cid: 'companyLogo',
             contentType: mimeMap[ext] || 'image/png',
           });
+        } else {
+          console.warn(`[WARN] Invoice logo not found at path: ${logoFilePath}`);
+        }
+      } else if (companyLogoUrl && isRemoteLogo && !companyLogoUrl.startsWith('data:')) {
+        try {
+          const response = await axios.get(companyLogoUrl, { responseType: 'arraybuffer', timeout: 10000 });
+          const contentType = response.headers['content-type'] || 'image/png';
+          const ext = contentType.includes('svg') ? 'svg' : contentType.includes('jpeg') ? 'jpg' : contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'png';
+          attachments.push({
+            filename: `logo.${ext}`,
+            content: Buffer.from(response.data),
+            cid: 'companyLogo',
+            contentType,
+          });
+        } catch (fetchErr) {
+          console.warn(`[WARN] Failed to fetch remote invoice logo: ${fetchErr.message}`);
         }
       }
 

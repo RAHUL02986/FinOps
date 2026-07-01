@@ -31,10 +31,12 @@ const mailTimeoutOptions = {
 };
 
 async function sendRecurringExpenseReminders() {
+  let ownConnection = false;
   try {
     // 1. Initialize database connection cleanly
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(process.env.MONGODB_URI);
+      ownConnection = true;
       console.log('[Scheduler] Database connection established.');
     }
 
@@ -92,10 +94,10 @@ async function sendRecurringExpenseReminders() {
       const isReminderDay = todayZeroed.getTime() === reminderDate.getTime();
 
       if (isReminderDay) {
-        // Query active superadmins to dispatch reminder messages
-        const admins = await User.find({ role: 'superadmin', isActive: true });
+        // Query active admins and superadmins to dispatch reminder messages
+        const admins = await User.find({ role: { $in: ['superadmin', 'admin'] }, isActive: true });
         if (admins.length === 0) {
-          console.log(`[WARN] No superadmin users discovered in database to receive notification for: '${exp.title}'.`);
+          console.log(`[WARN] No admin/superadmin users discovered in database to receive notification for: '${exp.title}'.`);
           continue;
         }
 
@@ -120,8 +122,8 @@ async function sendRecurringExpenseReminders() {
     console.error('[Scheduler] Fatal internal execution crash inside routine runner:', err);
     throw err; // Escalate out to ensure parent processes catch execution failure states
   } finally {
-    // Always tear down connection socket instances safely when code block wraps execution lifecycle loops
-    if (mongoose.connection.readyState !== 0) {
+    // Only disconnect if this routine created the connection.
+    if (ownConnection && mongoose.connection.readyState !== 0) {
       await mongoose.disconnect();
       console.log('[Scheduler] Database safely disconnected.');
     }

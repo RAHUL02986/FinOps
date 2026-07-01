@@ -61,6 +61,8 @@ const salarySlipSchema = new mongoose.Schema({
   // Notes
   notes1: { type: String, default: '' },
   notes2: { type: String, default: '' },
+  notes: { type: String, default: '' },
+  effectiveFrom: { type: Date, default: null },
 
   // Legacy fields for compatibility (optional)
   basicSalary: { type: Number, default: 0 },
@@ -97,6 +99,21 @@ const payrollRunSchema = new mongoose.Schema({
 
 payrollRunSchema.index({ month: 1, year: 1 }, { unique: true });
 salarySlipSchema.index({ employee: 1, month: 1, year: 1 });
+
+salarySlipSchema.post('save', async function () {
+  if (!this.payrollRun) return;
+  try {
+    const PayrollRunModel = mongoose.model('PayrollRun');
+    const SalarySlipModel = mongoose.model('SalarySlip');
+    const run = await PayrollRunModel.findById(this.payrollRun);
+    if (!run) return;
+    const relatedSlips = await SalarySlipModel.find({ payrollRun: run._id });
+    run.totalAmount = relatedSlips.reduce((sum, slip) => sum + (Number(slip.netSalary) || 0), 0);
+    await run.save();
+  } catch (err) {
+    console.error('Failed to recalculate payroll run total after salary slip save:', err.message);
+  }
+});
 
 const SalarySlip = mongoose.model('SalarySlip', salarySlipSchema);
 const PayrollRun = mongoose.model('PayrollRun', payrollRunSchema);

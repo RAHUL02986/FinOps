@@ -3,9 +3,9 @@ console.log('[CRON] recurringExpenseReminder.cron.js loaded');
 const { sendRecurringExpenseReminders } = require('./recurringExpenseReminder');
 const cron = require('node-cron');
 
-// Schedule: every day at 9:00AM (9:00 AM) server time
-cron.schedule('0 9 * * *', async () => {
-  console.log('[CRON] Running recurring expense reminder job at 9:00 (9:00 AM)');
+// Schedule: every day at 1:15PM server time
+cron.schedule('00 9 * * *', async () => {
+  console.log('[CRON] Running recurring expense reminder job at 13:15');
   try {
     await sendRecurringExpenseReminders();
     console.log('[CRON] Recurring expense reminders processed.');

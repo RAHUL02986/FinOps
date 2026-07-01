@@ -23,7 +23,7 @@ const recurringExpenseSchema = new mongoose.Schema({
   customDays: { type: Number }, // for custom frequency
   nextDueDate: { type: Date, required: true },
   lastPaidDate: { type: Date },
-  reminderDaysBefore: { type: Number, default: 3 },
+  reminderDaysBefore: { type: Number, default: 0},
   status: {
     type: String,
     enum: ['active', 'paused', 'archived'],

@@ -95,6 +95,19 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
     try { await notificationsAPI.markAllRead(); fetchNotifications(); } catch {}
   };
 
+  const handleNotificationClick = async (notif, link) => {
+    try {
+      await notificationsAPI.markRead(notif._id);
+      setNotifications((current) => current.map((item) => item._id === notif._id ? { ...item, read: true } : item));
+      setUnreadCount((current) => Math.max(0, current - (notif.read ? 0 : 1)));
+    } catch (err) {
+      console.error('Failed to mark notification read:', err);
+    } finally {
+      setShowNotifsDropdown(false);
+      router.push(link);
+    }
+  };
+
   // Handle avatar upload
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -173,6 +186,7 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
                     let link = '#';
                     if (n.type === 'transaction_created' || n.type === 'transaction_approved' || n.type === 'transaction_rejected') {
                       link = '/transactions';
+                      if (n.transaction) link = `/transactions?highlight=${n.transaction}`;
                     } else if (n.type === 'invoice_reminder') {
                       link = '/invoices';
                     } else if (n.type === 'payroll_notification') {
@@ -192,11 +206,15 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
                           {NOTIF_ICON[n.type] || (n.type?.startsWith('transaction') ? '💸' : '🔔')}
                         </span>
                         <div className="flex-1">
-                          <a href={link} className="block group hover:bg-indigo-50 rounded px-1 -mx-1 transition">
+                          <button
+                            type="button"
+                            onClick={() => handleNotificationClick(n, link)}
+                            className="w-full text-left group hover:bg-indigo-50 rounded px-1 -mx-1 transition"
+                          >
                             <div className="font-medium text-gray-900 group-hover:text-indigo-700">{n.title}</div>
                             <div className="text-gray-500 text-sm">{n.message}</div>
                             <div className="text-xs text-gray-400 mt-1">{fmtRelative(n.createdAt)}</div>
-                          </a>
+                          </button>
                         </div>
                       </li>
                     );

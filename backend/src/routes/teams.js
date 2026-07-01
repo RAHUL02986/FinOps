@@ -5,7 +5,7 @@ const { protect } = require('../middleware/auth');
 const router = express.Router();
 router.use(protect);
 
-const ELEVATED = ['superadmin', 'hr', 'manager'];
+const ELEVATED = ['superadmin', 'admin', 'hr', 'manager'];
 const isElevated = (role) => ELEVATED.includes(role);
 
 // ── GET /api/teams ── list all teams ──────────────────────────────────────────

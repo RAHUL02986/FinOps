@@ -20,14 +20,14 @@ router.use(protect);
 router.use((req, res, next) => {
   // Allow HR and Admin to create
   if (req.method === 'POST' && req.path === '/') {
-    if (req.user.role !== 'hr' && req.user.role !== 'superadmin') {
+    if (req.user.role !== 'hr' && req.user.role !== 'admin' && req.user.role !== 'superadmin') {
       return res.status(403).json({ message: 'Only HR or Admin can create recurring expenses' });
     }
     return next();
   }
-  // Only admin can edit/delete/mark-paid
+  // Only admin or superadmin can edit/delete/mark-paid
   if ((req.method === 'PUT' || req.method === 'DELETE' || (req.method === 'POST' && req.path.endsWith('/mark-paid')))) {
-    if (req.user.role !== 'superadmin') {
+    if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Only admin can perform this action' });
     }
     return next();

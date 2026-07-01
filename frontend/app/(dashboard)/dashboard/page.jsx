@@ -54,7 +54,7 @@ function DashboardPage() {
     }
   }, [user]);
 
-  // Fetch category breakdown when team/employee changes
+  // Fetch category breakdown when team/employee changes or when user role becomes available
   useEffect(() => {
     if (!ELEVATED.includes(user?.role)) return;
     const params = { period };
@@ -66,7 +66,7 @@ function DashboardPage() {
         expenseByCat: res.data.data.expenseByCat || [],
       });
     });
-  }, [selectedTeam, selectedEmployee, period]);
+  }, [user, selectedTeam, selectedEmployee, period]);
 
 
   // Restrict dashboard access to allowed roles only

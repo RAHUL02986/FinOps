@@ -12,7 +12,7 @@ export default function RecurringExpensesPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ title: '', amount: '', category: 'Other', description: '', frequency: 'monthly', customDays: '', nextDueDate: '', reminderDaysBefore: 3, status: 'active', autoCreateTransaction: false });
+  const [form, setForm] = useState({ title: '', amount: '', category: 'Other', description: '', frequency: 'monthly', customDays: '', nextDueDate: '', reminderDaysBefore: 0, status: 'active', autoCreateTransaction: false });
 
   useEffect(() => { load(); }, []);
   const load = async () => { setLoading(true); try { const r = await recurringExpensesAPI.getAll(); setExpenses(r.data); } catch { toast.error('Failed to load'); } setLoading(false); };

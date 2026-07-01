@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { payrollAPI } from '../../../lib/api';
+import SalaryForm from '../../../components/SalaryForm';
 import toast from 'react-hot-toast';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -10,8 +11,12 @@ export default function PayrollPage() {
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showSalaryModal, setShowSalaryModal] = useState(false);
+  const [selectedSlip, setSelectedSlip] = useState(null);
   const [form, setForm] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear(), defaultBasicSalary: 50000 });
   const [expandedRun, setExpandedRun] = useState(null);
+  const [selectedSlips, setSelectedSlips] = useState([]);
+  const [activeTab, setActiveTab] = useState('pending');
 
   useEffect(() => { load(); }, []);
   const load = async () => { setLoading(true); try { const r = await payrollAPI.getRuns(); setRuns(r.data); } catch { toast.error('Failed to load'); } setLoading(false); };
@@ -25,6 +30,56 @@ export default function PayrollPage() {
   const handleComplete = async (id) => {
     try { await payrollAPI.completeRun(id); toast.success('Payroll run completed'); load(); }
     catch { toast.error('Failed'); }
+  };
+
+  const handleCompleteSelected = async (runId) => {
+    if (!selectedSlips.length) {
+      toast.error('Select employees first');
+      return;
+    }
+    try {
+      const r = await payrollAPI.completeSlips(selectedSlips);
+      toast.success(r.data.message || 'Selected slips completed');
+      setSelectedSlips([]);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to complete selected slips');
+    }
+  };
+
+  const handleEmailSelected = async (runId) => {
+    if (!selectedSlips.length) {
+      toast.error('Select employees first');
+      return;
+    }
+    try {
+      const r = await payrollAPI.emailSlips(runId, selectedSlips);
+      toast.success(r.data.message || 'Selected slips emailed');
+      setSelectedSlips([]);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to email selected slips');
+    }
+  };
+
+  const startEditSlip = (slip) => {
+    setSelectedSlip(slip);
+    setShowSalaryModal(true);
+  };
+
+  const toggleSlipSelect = (id) => {
+    const stringId = id.toString();
+    setSelectedSlips(prev => prev.includes(stringId) ? prev.filter(item => item !== stringId) : [...prev, stringId]);
+  };
+
+  const toggleSelectAll = (slips) => {
+    const allIds = slips.map(slip => slip._id.toString());
+    const allSelected = allIds.every(id => selectedSlips.includes(id));
+    if (allSelected) {
+      setSelectedSlips(prev => prev.filter(id => !allIds.includes(id)));
+    } else {
+      setSelectedSlips(prev => [...new Set([...prev, ...allIds])]);
+    }
   };
 
   const handleEmailSlips = async (id) => {
@@ -64,6 +119,7 @@ export default function PayrollPage() {
       {runs.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border"><div className="text-5xl mb-4">💰</div><h3 className="text-lg font-semibold text-gray-700">No payroll runs</h3><p className="text-gray-500 mt-1">Create a payroll run to generate salary slips</p></div>
       ) : (
+        <>
         <div className="space-y-4">
           {runs.map(run => (
             <div key={run._id} className="bg-white rounded-xl border overflow-hidden">
@@ -83,9 +139,17 @@ export default function PayrollPage() {
               </div>
               {expandedRun === run._id && run.slips && (
                 <div className="border-t">
+                  <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white border-b">
+                    <div className="text-sm text-gray-600">{selectedSlips.length} selected</div>
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => handleCompleteSelected(run._id)} className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">Complete selected</button>
+                      <button onClick={() => handleEmailSelected(run._id)} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Email selected</button>
+                    </div>
+                  </div>
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="px-4 py-2 text-left font-medium text-gray-600"><input type="checkbox" checked={run.slips.length > 0 && run.slips.every(slip => selectedSlips.includes(slip._id.toString()))} onChange={() => toggleSelectAll(run.slips)} className="h-4 w-4 text-indigo-600 rounded border-gray-300" /></th>
                         <th className="px-4 py-2 text-left font-medium text-gray-600">Employee</th>
                         <th className="px-4 py-2 text-right font-medium text-gray-600">Basic</th>
                         <th className="px-4 py-2 text-right font-medium text-gray-600">HRA</th>
@@ -95,61 +159,51 @@ export default function PayrollPage() {
                         <th className="px-4 py-2 text-right font-medium text-gray-600">Deductions</th>
                         <th className="px-4 py-2 text-right font-medium text-gray-600">Net Salary</th>
                         <th className="px-4 py-2 text-center font-medium text-gray-600">Status</th>
+                        <th className="px-4 py-2 text-center font-medium text-gray-600">Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {run.slips.map(slip => (
-                        <tr key={slip._id} className="border-t hover:bg-gray-50">
-                          <td className="px-4 py-3"><p className="font-medium">{slip.employeeName}</p><p className="text-xs text-gray-400">{slip.employeeEmail}</p></td>
-                          <td className="px-4 py-3 text-right">₹{slip.basicSalary?.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right">{slip.hra ? `₹${slip.hra.toLocaleString()}` : ''}</td>
-                          <td className="px-4 py-3 text-right">{slip.allowances ? `₹${slip.allowances.toLocaleString()}` : ''}</td>
-                          <td className="px-4 py-3 text-right">{slip.bonus ? `₹${slip.bonus.toLocaleString()}` : ''}</td>
-                          {/* Earnings = sum of all earnings amounts */}
-                          <td className="px-4 py-3 text-right">₹{
-                            ((Array.isArray(slip.earnings) && slip.earnings.length > 0)
-                              ? slip.earnings.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0)
-                              : 0
-                            ).toLocaleString()
-                          }</td>
-                          {/* Deductions = Facilities/Expenses + Extra Deduction */}
-                          <td className="px-4 py-3 text-right text-red-500">
-                            -₹{
-                              (
-                                ((Array.isArray(slip.facilities) && slip.facilities.length > 0)
-                                  ? slip.facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0)
-                                  : 0)
-                                + ((Array.isArray(slip.extraDeductions) && slip.extraDeductions.length > 0)
-                                  ? slip.extraDeductions.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0)
-                                  : 0)
-                              ).toLocaleString()
-                            }
-                          </td>
-                          {/* Net Salary = Basic + Earnings - Deductions */}
-                          <td className="px-4 py-3 text-right font-bold">
-                            ₹{
-                              (
-                                (slip.basicSalary || 0)
-                                + (slip.hra || 0)
-                                + (slip.allowances || 0)
-                                + (slip.bonus || 0)
-                                + ((Array.isArray(slip.earnings) && slip.earnings.length > 0)
-                                    ? slip.earnings.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0)
-                                    : 0)
-                                - (
-                                    ((Array.isArray(slip.facilities) && slip.facilities.length > 0)
-                                      ? slip.facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0)
-                                      : 0)
-                                    + ((Array.isArray(slip.extraDeductions) && slip.extraDeductions.length > 0)
-                                      ? slip.extraDeductions.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0)
-                                      : 0)
-                                  )
-                              ).toLocaleString()
-                            }
-                          </td>
-                          <td className="px-4 py-3 text-center"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[slip.status]}`}>{slip.status}</span></td>
-                        </tr>
-                      ))}
+                      {run.slips.map(slip => {
+                        const earningsTotal = (Array.isArray(slip.earnings) && slip.earnings.length > 0) ? slip.earnings.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0) : 0;
+                        const facilitiesTotal = (Array.isArray(slip.facilities) && slip.facilities.length > 0) ? slip.facilities.reduce((sum, f) => sum + (parseFloat(f.cost) || 0), 0) : 0;
+                        const extraDeductionsTotal = (Array.isArray(slip.extraDeductions) && slip.extraDeductions.length > 0) ? slip.extraDeductions.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0) : 0;
+                        const deductionsTotal = facilitiesTotal + extraDeductionsTotal;
+                        const netSalary = ((Number(slip.basicSalary) || 0)
+                          + (Number(slip.hra) || 0)
+                          + (Number(slip.allowances) || 0)
+                          + (Number(slip.bonus) || 0)
+                          + earningsTotal
+                          - deductionsTotal
+                        );
+
+                        return (
+                          <tr key={slip._id} className="border-t hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <input type="checkbox" checked={selectedSlips.includes(slip._id.toString())} onChange={() => toggleSlipSelect(slip._id)} className="h-4 w-4 text-indigo-600 rounded border-gray-300" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="font-medium">{slip.employeeName}</p>
+                                  <p className="text-xs text-gray-400">{slip.employeeEmail}</p>
+                                </div>
+                                {/* <button onClick={() => startEditSlip(slip)} className="text-indigo-600 text-sm hover:text-indigo-800">Edit</button> */}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-right">₹{(slip.basicSalary || 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right">{slip.hra ? `₹${slip.hra.toLocaleString()}` : ''}</td>
+                            <td className="px-4 py-3 text-right">{slip.allowances ? `₹${slip.allowances.toLocaleString()}` : ''}</td>
+                            <td className="px-4 py-3 text-right">{slip.bonus ? `₹${slip.bonus.toLocaleString()}` : ''}</td>
+                            <td className="px-4 py-3 text-right">₹{earningsTotal.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right text-red-500">-₹{deductionsTotal.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right font-bold">₹{netSalary.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-center"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[slip.status]}`}>{slip.status}</span></td>
+                            <td className="px-4 py-3 text-center">
+                                <button onClick={() => startEditSlip(slip)} className="px-3 py-1 bg-gray-100 rounded-lg text-sm text-gray-700 hover:bg-gray-200">Edit</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -157,6 +211,22 @@ export default function PayrollPage() {
             </div>
           ))}
         </div>
+        {showSalaryModal && selectedSlip && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl p-8">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold">Edit Salary - {selectedSlip.employeeName}</h2>
+                <button onClick={() => setShowSalaryModal(false)} className="text-gray-400 hover:text-gray-700">✕</button>
+              </div>
+              <SalaryForm
+                slip={selectedSlip}
+                onClose={() => setShowSalaryModal(false)}
+                onSaved={() => { setShowSalaryModal(false); setSelectedSlip(null); load(); }}
+              />
+            </div>
+          </div>
+        )}
+        </>
       )}
     </div>
   );
