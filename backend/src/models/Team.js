@@ -4,6 +4,7 @@ const TeamSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 100 },
     color: { type: String, default: '#6366f1', trim: true },
+    isActive: { type: Boolean, default: true },
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   },

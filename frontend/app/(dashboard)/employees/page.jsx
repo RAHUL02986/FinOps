@@ -172,13 +172,13 @@ export default function EmployeesPage() {
                               }
                             }}
                             onSoftDelete={async () => {
-                              if (!window.confirm(`delete ${emp.name}? This will hide their account but not remove it permanently.`)) return;
+                              if (!window.confirm(`Delete ${emp.name}? This cannot be undone.`)) return;
                               try {
-                                await usersAPI.update(emp._id, { isDeleted: true });
-                                toast.success('Employee soft deleted');
+                                await usersAPI.remove(emp._id);
+                                toast.success('Employee deleted');
                                 load();
                               } catch (err) {
-                                toast.error(err.response?.data?.message || 'Failed to soft delete');
+                                toast.error(err.response?.data?.message || 'Failed to delete employee');
                               }
                             }}
                           />
@@ -271,16 +271,15 @@ export default function EmployeesPage() {
                       <button className="btn-action" title="Edit" onClick={() => handleEditTeam(team)}>
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13h3l8-8a2.828 2.828 0 10-4-4l-8 8v3z" /></svg>
                       </button>
+                      <button
+                        className={`px-3 py-1 rounded-md text-sm font-semibold border ${team.isActive ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100' : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'}`}
+                        onClick={() => handleToggleStatus(team)}
+                      >
+                        {team.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
                       <button className="btn-action" title="Delete" onClick={() => handleDeleteTeam(team)}>
                         <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                       </button>
-                      {/* <button className="btn-action" title="Toggle Status" onClick={() => handleToggleStatus(team)}>
-                        {team.isActive ? (
-                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 12H6" /></svg>
-                        ) : (
-                          <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6" /></svg>
-                        )}
-                      </button> */}
                     </div>
                   </div>
                 ))}

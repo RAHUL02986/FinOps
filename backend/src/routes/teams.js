@@ -26,13 +26,14 @@ router.post('/', async (req, res) => {
   if (!isElevated(req.user.role))
     return res.status(403).json({ success: false, message: 'Not authorized' });
   try {
-    const { name, color, members } = req.body;
+    const { name, color, members, isActive } = req.body;
     if (!name?.trim())
       return res.status(400).json({ success: false, message: 'Team name is required' });
 
     const team = await Team.create({
       name: name.trim(),
       color: color || '#6366f1',
+      isActive: isActive !== undefined ? Boolean(isActive) : true,
       members: members || [],
       createdBy: req.user.id,
     });
@@ -56,9 +57,10 @@ router.put('/:id', async (req, res) => {
     const team = await Team.findById(req.params.id);
     if (!team) return res.status(404).json({ success: false, message: 'Team not found' });
 
-    const { name, color, members } = req.body;
+    const { name, color, members, isActive } = req.body;
     if (name !== undefined) team.name = name.trim();
     if (color !== undefined) team.color = color;
+    if (isActive !== undefined) team.isActive = Boolean(isActive);
     if (members !== undefined) team.members = members;
 
     await team.save();

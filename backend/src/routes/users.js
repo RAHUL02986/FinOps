@@ -119,7 +119,7 @@ router.put('/:id', async (req, res) => {
   try {
     const { 
       name, email, role, designation, phone, sector, employmentType, 
-      joiningDate, experienceYears, isActive, password, employeeId, 
+      joiningDate, experienceYears, isActive, isDeleted, password, employeeId, 
       fatherName, motherName, alternateMobile, aadhaar, department, teamId 
     } = req.body;
 
@@ -133,6 +133,7 @@ router.put('/:id', async (req, res) => {
     }
 
     const oldDepartment = user.department;
+    const oldIsDeleted = user.isDeleted;
     const cleanDepartment = department !== undefined ? department.trim() : undefined;
 
     if (name !== undefined) user.name = name;
@@ -151,9 +152,19 @@ router.put('/:id', async (req, res) => {
     if (joiningDate !== undefined) user.joiningDate = joiningDate || null;
     if (experienceYears !== undefined) user.experienceYears = Number(experienceYears);
     if (isActive !== undefined) user.isActive = isActive;
+    if (isDeleted !== undefined) user.isDeleted = isDeleted;
     if (password) user.password = password;
 
     await user.save();
+
+    if (isDeleted === true && !oldIsDeleted) {
+      if (user.department) {
+        await Team.findOneAndUpdate(
+          { name: { $regex: new RegExp(`^\\s*${user.department.trim()}\\s*$`, 'i') } },
+          { $pull: { members: user._id } }
+        );
+      }
+    }
 
     // Sync team modifications if department changes
     if (cleanDepartment !== undefined && cleanDepartment !== oldDepartment) {

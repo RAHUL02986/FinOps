@@ -49,13 +49,13 @@ export default function SalaryForm({ employee, slip, onClose, onSaved }) {
 
     async function fetchData() {
       if (!employee && !slip) return;
-      const userId = employee?._id || employee?.id || slip?.employee;
+      const userId = employee?._id || employee?.id || (slip?.employee?._id || slip?.employee);
       if (!userId) return;
 
       setForm(f => ({
         ...f,
         employeeId: slip?.employeeId || employee?.employeeId || userId || '',
-        employeeName: slip?.employeeName || employee?.name || employee?.employeeName || '',
+        employeeName: slip?.employeeName || employee?.name || employee?.employeeName || (typeof slip?.employee === 'object' ? slip.employee.name : '') || '',
         department: slip?.department || employee?.department || '',
         designation: slip?.designation || employee?.designation || '',
         fatherName: slip?.fatherName || employee?.fatherName || '',
@@ -147,13 +147,19 @@ export default function SalaryForm({ employee, slip, onClose, onSaved }) {
     setForm((f) => ({ ...f, [name]: value }));
   };
 
+  const handleResetBasicSalary = () => {
+    const resetValue = slip?.basicSalary ?? 0;
+    setForm((f) => ({ ...f, basicSalary: resetValue }));
+    toast.success('Basic salary reset to current slip value');
+  };
+
   // Dynamic array handlers
   const handleArrayChange = (arrName, idx, field, value) => {
     setForm(f => ({
       ...f,
       [arrName]: f[arrName].map((row, i) => i === idx ? { ...row, [field]: value } : row)
     }));
-  };
+  }; 
   const handleAddRow = (arrName, emptyRow) => {
     setForm(f => ({ ...f, [arrName]: [...f[arrName], emptyRow] }));
   };
@@ -183,10 +189,13 @@ export default function SalaryForm({ employee, slip, onClose, onSaved }) {
       const date = new Date(form.effectiveFrom);
       const month = date.getMonth() + 1;
       const year = date.getFullYear();
+      const resolvedEmployeeId = employee?._id || employee?.id || (slip?.employee?._id || slip?.employee);
+      const resolvedEmployeeEmail = employee?.email || slip?.employeeEmail || (typeof slip?.employee === 'object' ? slip.employee.email : '');
+
       const payload = {
-        employee: employee?._id || employee?.id || slip?.employee,
+        employee: resolvedEmployeeId,
         employeeName: form.employeeName,
-        employeeEmail: employee?.email || slip?.employeeEmail,
+        employeeEmail: resolvedEmployeeEmail,
         employeeId: form.employeeId,
         department: form.department,
         designation: form.designation,
@@ -336,7 +345,11 @@ export default function SalaryForm({ employee, slip, onClose, onSaved }) {
       {/* Legacy fields for compatibility */}
       <div className="col-span-1">
         <label className="block text-sm font-medium mb-1">Basic Salary</label>
-        <input name="basicSalary" value={form.basicSalary} onChange={handleChange} className="input w-full" type="number" min="0" required />
+        <div className="flex gap-2 items-center">
+          <input name="basicSalary" value={form.basicSalary} onChange={handleChange} className="input w-full" type="number" min="0" required />
+          <button type="button" onClick={handleResetBasicSalary} className="px-3 py-2 bg-gray-100 rounded-lg text-sm text-gray-700 hover:bg-gray-200">Revert</button>
+        </div>
+        <p className="text-xs text-gray-400 mt-1">Click Revert to restore the currently saved salary before saving changes.</p>
       </div>
       <div className="col-span-1">
         <label className="block text-sm font-medium mb-1">HRA</label>
