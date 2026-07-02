@@ -12,7 +12,7 @@ export default function SalaryForm({ employee, slip, onClose, onSaved }) {
     employeeName: '',
     department: '',
     designation: '', // fetched, not editable
-    workLocation: '', // fetched, not editable
+    workLocation: 'Dharamshala', // fetched, not editable
     fatherName: '',
     motherName: '',
     earnings: [ { component: '', amount: '', remarks: '' } ],

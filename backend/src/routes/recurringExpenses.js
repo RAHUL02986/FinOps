@@ -16,7 +16,7 @@ router.get('/:id/history', async (req, res) => {
 });
 
 router.use(protect);
-// Only HR can create, only admin can edit/delete/mark-paid
+// HR and admin can create; HR, admin and superadmin can edit/delete/mark-paid
 router.use((req, res, next) => {
   // Allow HR and Admin to create
   if (req.method === 'POST' && req.path === '/') {
@@ -25,10 +25,10 @@ router.use((req, res, next) => {
     }
     return next();
   }
-  // Only admin or superadmin can edit/delete/mark-paid
+  // Allow HR, Admin and Superadmin to edit/delete/mark-paid
   if ((req.method === 'PUT' || req.method === 'DELETE' || (req.method === 'POST' && req.path.endsWith('/mark-paid')))) {
-    if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Only admin can perform this action' });
+    if (req.user.role !== 'superadmin' && req.user.role !== 'admin' && req.user.role !== 'hr') {
+      return res.status(403).json({ message: 'Only HR, Admin or Superadmin can perform this action' });
     }
     return next();
   }
