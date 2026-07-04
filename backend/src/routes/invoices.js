@@ -8,6 +8,7 @@ const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const Invoice = require('../models/Invoice');
 const { protect } = require('../middleware/auth');
+const { sendEmail } = require('../utils/resendMailer');
 
 // ── Logo upload setup ─────────────────────────────────────────────────────────
 const LOGOS_DIR = path.join(__dirname, '..', '..', 'uploads', 'logos');
@@ -212,57 +213,6 @@ function buildInvoiceHtml(invoice) {
 </html>`;
 }
 
-// ── Create transporter (uses DB SMTP config with fallback to env) ─────────────
-const SmtpConfig = require('../models/SmtpConfig');
-
-async function createTransporter() {
-  // Try invoice SMTP config first, then system, then env
-  let smtpConfig = await SmtpConfig.findOne({ type: 'invoice', isActive: true });
-  if (!smtpConfig) smtpConfig = await SmtpConfig.findOne({ type: 'system', isActive: true });
-
-  // Common timeout and TLS options to prevent hanging
-  const timeoutOptions = {
-    connectionTimeout: 10000, // 10 seconds timeout
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
-    tls: {
-      rejectUnauthorized: false // Bypasses strict local SSL certificate errors on Linux hosts
-    }
-  };
-
-  if (smtpConfig) {
-    return {
-      transporter: nodemailer.createTransport({
-        host: smtpConfig.host,
-        port: smtpConfig.port,
-        secure: smtpConfig.secure || false,
-        auth: { user: smtpConfig.user, pass: smtpConfig.pass },
-        ...timeoutOptions // Applies timeouts here
-      }),
-      fromEmail: smtpConfig.fromEmail || smtpConfig.user,
-      fromName: smtpConfig.fromName || ''
-    };
-  }
-
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = parseInt(process.env.SMTP_PORT || '587', 10);
-  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
-  
-  if (!user || !pass) return null;
-  
-  return {
-    transporter: nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-      ...timeoutOptions // Applies timeouts here
-    }),
-    fromEmail: user,
-    fromName: ''
-  };
-}
 
 // ── GET /api/invoices ─────────────────────────────────────────────────────────
 router.get('/', requireElevated, async (req, res) => {
@@ -438,73 +388,58 @@ router.post('/:id/send', requireElevated, async (req, res) => {
     }
 
     const html = buildInvoiceHtml(invoice);
-    const smtpResult = await createTransporter();
-    const transporter = smtpResult?.transporter;
+    const fromName = invoice.company?.name || process.env.COMPANY_NAME || 'Billing';
+    const fromEmail = process.env.RESEND_FROM || process.env.EMAIL_FROM || `${fromName} <onboarding@resend.dev>`;
 
-    if (transporter) {
-      // Verify SMTP connection
-      await transporter.verify();
+    const attachments = [];
+    const companyLogoUrl = invoice.company?.logo || '';
+    const isRemoteLogo = /^https?:\/\//i.test(companyLogoUrl) || companyLogoUrl.startsWith('data:');
 
-      const fromName = invoice.company?.name || smtpResult.fromName || process.env.COMPANY_NAME || 'Billing';
-      const fromEmail = smtpResult.fromEmail || process.env.SMTP_USER || process.env.EMAIL_USER;
-
-      // Build attachments — embed the logo as inline CID where possible
-      const attachments = [];
-      const companyLogoUrl = invoice.company?.logo || '';
-      const isRemoteLogo = /^https?:\/\//i.test(companyLogoUrl) || companyLogoUrl.startsWith('data:');
-
-      if (companyLogoUrl && !isRemoteLogo) {
-        const relativeLogoPath = companyLogoUrl.startsWith('/') ? companyLogoUrl.substring(1) : companyLogoUrl;
-        let logoFilePath;
-        if (relativeLogoPath.startsWith('uploads/')) {
-          logoFilePath = path.join(process.cwd(), relativeLogoPath);
-        } else if (relativeLogoPath.startsWith('logos/')) {
-          logoFilePath = path.join(process.cwd(), 'uploads', relativeLogoPath);
-        } else {
-          logoFilePath = path.join(process.cwd(), 'uploads', relativeLogoPath);
-        }
-
-        if (fs.existsSync(logoFilePath)) {
-          const ext = path.extname(logoFilePath).toLowerCase().replace('.', '') || 'png';
-          const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', svg: 'image/svg+xml' };
-          attachments.push({
-            filename: `logo.${ext}`,
-            path: logoFilePath,
-            cid: 'companyLogo',
-            contentType: mimeMap[ext] || 'image/png',
-          });
-        } else {
-          console.warn(`[WARN] Invoice logo not found at path: ${logoFilePath}`);
-        }
-      } else if (companyLogoUrl && isRemoteLogo && !companyLogoUrl.startsWith('data:')) {
-        try {
-          const response = await axios.get(companyLogoUrl, { responseType: 'arraybuffer', timeout: 10000 });
-          const contentType = response.headers['content-type'] || 'image/png';
-          const ext = contentType.includes('svg') ? 'svg' : contentType.includes('jpeg') ? 'jpg' : contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'png';
-          attachments.push({
-            filename: `logo.${ext}`,
-            content: Buffer.from(response.data),
-            cid: 'companyLogo',
-            contentType,
-          });
-        } catch (fetchErr) {
-          console.warn(`[WARN] Failed to fetch remote invoice logo: ${fetchErr.message}`);
-        }
+    if (companyLogoUrl && !isRemoteLogo) {
+      const relativeLogoPath = companyLogoUrl.startsWith('/') ? companyLogoUrl.substring(1) : companyLogoUrl;
+      let logoFilePath;
+      if (relativeLogoPath.startsWith('uploads/')) {
+        logoFilePath = path.join(process.cwd(), relativeLogoPath);
+      } else if (relativeLogoPath.startsWith('logos/')) {
+        logoFilePath = path.join(process.cwd(), 'uploads', relativeLogoPath);
+      } else {
+        logoFilePath = path.join(process.cwd(), 'uploads', relativeLogoPath);
       }
 
-      const mailOpts = {
-        from: `"${fromName}" <${fromEmail}>`,
-        to: recipientEmail,
-        subject: `Invoice ${invoice.invoiceNumber} from ${fromName}`,
-        html,
-        attachments,
-      };
-
-      if (ccList && ccList.length > 0) mailOpts.cc = ccList;
-
-      await transporter.sendMail(mailOpts);
+      if (fs.existsSync(logoFilePath)) {
+        const ext = path.extname(logoFilePath).toLowerCase().replace('.', '') || 'png';
+        const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', svg: 'image/svg+xml' };
+        attachments.push({
+          filename: `logo.${ext}`,
+          path: logoFilePath,
+          contentType: mimeMap[ext] || 'image/png',
+        });
+      } else {
+        console.warn(`[WARN] Invoice logo not found at path: ${logoFilePath}`);
+      }
+    } else if (companyLogoUrl && isRemoteLogo && !companyLogoUrl.startsWith('data:')) {
+      try {
+        const response = await axios.get(companyLogoUrl, { responseType: 'arraybuffer', timeout: 10000 });
+        const contentType = response.headers['content-type'] || 'image/png';
+        const ext = contentType.includes('svg') ? 'svg' : contentType.includes('jpeg') ? 'jpg' : contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'png';
+        attachments.push({
+          filename: `logo.${ext}`,
+          content: Buffer.from(response.data),
+          contentType,
+        });
+      } catch (fetchErr) {
+        console.warn(`[WARN] Failed to fetch remote invoice logo: ${fetchErr.message}`);
+      }
     }
-    // If no SMTP configured, still mark as sent (client receives via other means)
+
+    await sendEmail({
+      to: recipientEmail,
+      cc: ccList,
+      subject: `Invoice ${invoice.invoiceNumber} from ${fromName}`,
+      html,
+      from: fromEmail,
+      attachments,
+    });
 
     invoice.status = 'sent';
     invoice.sentAt = new Date();
@@ -515,10 +450,8 @@ router.post('/:id/send', requireElevated, async (req, res) => {
     res.json({
       success: true,
       data: invoice,
-      emailSent: !!transporter,
-      message: transporter
-        ? `Invoice sent to ${recipientEmail}`
-        : `Invoice marked as sent (configure SMTP to enable email delivery)`,
+      emailSent: true,
+      message: `Invoice sent to ${recipientEmail}`,
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

@@ -4,8 +4,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 const { protect } = require('../middleware/auth');
-const nodemailer = require('nodemailer');
-const SmtpConfig = require('../models/SmtpConfig');
+const { sendEmail } = require('../utils/resendMailer');
 const crypto = require('crypto');
 const OTP_EXPIRY_MINUTES = 10;
 
@@ -52,37 +51,9 @@ const mailTimeoutOptions = {
   socketTimeout: 15000,
 };
 
-function getSmtpEnv() {
-  return {
-    user: process.env.SMTP_USER || process.env.EMAIL_USER || '',
-    pass: process.env.SMTP_PASS || process.env.EMAIL_PASS || '',
-    from: process.env.SMTP_FROM || process.env.EMAIL_FROM || process.env.SMTP_USER || process.env.EMAIL_USER || '',
-    host: process.env.SMTP_HOST || process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: Number(process.env.SMTP_PORT || process.env.EMAIL_PORT || '587'),
-  };
-}
-
-function createTransporterFromConfig(smtpConfig) {
-  return nodemailer.createTransport({
-    host: smtpConfig.host,
-    port: Number(smtpConfig.port),
-    secure: Number(smtpConfig.port) === 465,
-    auth: { user: smtpConfig.user, pass: smtpConfig.pass },
-    tls: { rejectUnauthorized: false },
-    ...mailTimeoutOptions,
-  });
-}
-
-function createTransporterFromEnv(envConfig) {
-  return nodemailer.createTransport({
-    host: envConfig.host,
-    port: envConfig.port,
-    secure: envConfig.port === 465,
-    auth: { user: envConfig.user, pass: envConfig.pass },
-    tls: { rejectUnauthorized: false },
-    ...mailTimeoutOptions,
-  });
-}
+// Resend is the preferred mail provider for this app. Configure RESEND_API_KEY
+// and optionally RESEND_FROM in the backend .env file. If those are missing,
+// OTP emails will fail with a clear configuration error instead of silently using SMTP.
 
 // POST /api/auth/register
 router.post(
@@ -197,40 +168,18 @@ router.post(
           return res.status(500).json({ success: false, message: 'Admin email not configured' });
         }
 
-        // Configure Mailer Transporter safely
-        let smtpConfig = await SmtpConfig.findOne({ type: 'system', isActive: true });
-        let transporter;
-        let senderEmail;
-
-        if (smtpConfig) {
-          senderEmail = smtpConfig.fromEmail || smtpConfig.user;
-          transporter = createTransporterFromConfig(smtpConfig);
-        } else {
-          const envConfig = getSmtpEnv();
-          senderEmail = envConfig.from || envConfig.user;
-          if (!envConfig.user || !envConfig.pass) {
-            console.error('SMTP env missing user/pass for OTP email');
-            return res.status(500).json({
-              success: false,
-              message: 'Failed to send verification OTP mail. SMTP credentials are not configured.',
-            });
-          }
-          transporter = createTransporterFromEnv(envConfig);
-        }
-
         try {
-          // Send OTP Email
-          await transporter.sendMail({
-            from: senderEmail,
+          await sendEmail({
             to: adminEmail,
             subject: `OTP for ${user.role} login: ${user.email}`,
             text: `OTP for ${user.name} (${user.email}) login: ${otp}\nThis OTP is valid for ${OTP_EXPIRY_MINUTES} minutes.`,
+            html: `<p>OTP for <strong>${user.name}</strong> (${user.email}) login: <strong>${otp}</strong></p><p>This OTP is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`,
           });
         } catch (mailError) {
-          console.error("Nodemailer failed to dispatch OTP email:", mailError.message);
-          return res.status(500).json({ 
-            success: false, 
-            message: "Failed to send verification OTP mail. Please check your system email configuration." 
+          console.error('Resend failed to dispatch OTP email:', mailError.message);
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to send verification OTP mail. Please check your Resend configuration.',
           });
         }
 

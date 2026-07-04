@@ -4,9 +4,8 @@ const { protect } = require('../middleware/auth');
 const { authorize } = require('../middleware/roleCheck');
 const { SalarySlip, PayrollRun } = require('../models/Payroll');
 const User = require('../models/User');
-const SmtpConfig = require('../models/SmtpConfig');
-const nodemailer = require('nodemailer');
 const path = require('path');
+const { sendEmail } = require('../utils/resendMailer');
 const os = require('os');
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -15,15 +14,6 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 router.use(protect);
 router.use(authorize('superadmin', 'admin', 'hr', 'manager'));
 
-// Shared network timeout controls to prevent 2-minute server freezes on Render free tier
-const mailTimeoutOptions = {
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
-  tls: {
-    rejectUnauthorized: false // Bypasses strict local SSL errors on Linux/Render instances
-  }
-};
 
 // GET employees missing a salary slip for a given month/year
 router.get('/missing-slips', async (req, res) => {
@@ -321,29 +311,8 @@ router.post('/slips/email', async (req, res) => {
       return res.json({ message: 'No unsent salary slips found to email' });
     }
 
-    let smtpConfig = await SmtpConfig.findOne({ type: 'payroll', isActive: true });
-    if (!smtpConfig) smtpConfig = await SmtpConfig.findOne({ type: 'system', isActive: true });
-
-    const transportConfig = smtpConfig ? {
-      host: smtpConfig.host,
-      port: Number(smtpConfig.port),
-      secure: Number(smtpConfig.port) === 465,
-      auth: { user: smtpConfig.user, pass: smtpConfig.pass },
-      ...mailTimeoutOptions
-    } : {
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587', 10),
-      secure: parseInt(process.env.SMTP_PORT || '587', 10) === 465,
-      auth: {
-        user: process.env.SMTP_USER || process.env.EMAIL_USER,
-        pass: process.env.SMTP_PASS || process.env.EMAIL_PASS
-      },
-      ...mailTimeoutOptions
-    };
-
-    const transporter = nodemailer.createTransport(transportConfig);
-    const fromEmail = smtpConfig?.fromEmail || process.env.SMTP_USER || process.env.EMAIL_USER;
-    const fromName = smtpConfig?.fromName || process.env.COMPANY_NAME || 'FinOps HR';
+    const fromName = process.env.COMPANY_NAME || 'FinOps HR';
+    const fromEmail = process.env.RESEND_FROM || process.env.EMAIL_FROM || 'FinOps HR <onboarding@resend.dev>';
     const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     const { generateSalarySlipPDF } = require('../utils/salarySlipPDF');
 
@@ -359,8 +328,8 @@ router.post('/slips/email', async (req, res) => {
 
         const html = `<div style="font-family:Arial,sans-serif;">Dear <strong>${slip.employeeName}</strong>,<br>Your salary slip for ${monthNames[slip.month - 1]} ${slip.year} is attached as a PDF.<br><br>Regards,<br>${fromName}</div>`;
 
-        await transporter.sendMail({
-          from: `"${fromName}" <${fromEmail}>`,
+        await sendEmail({
+          from: fromEmail,
           to: slip.employeeEmail,
           subject: `Salary Slip - ${monthNames[slip.month - 1]} ${slip.year}`,
           html,
@@ -484,30 +453,8 @@ router.post('/runs/:id/email-slips', async (req, res) => {
       return res.json({ message: 'No unsent salary slips found to email' });
     }
 
-    // Find active custom SMTP config matching 'payroll' type or fall back to system
-    let smtpConfig = await SmtpConfig.findOne({ type: 'payroll', isActive: true });
-    if (!smtpConfig) smtpConfig = await SmtpConfig.findOne({ type: 'system', isActive: true });
-
-    const transportConfig = smtpConfig ? {
-      host: smtpConfig.host,
-      port: Number(smtpConfig.port),
-      secure: Number(smtpConfig.port) === 465,
-      auth: { user: smtpConfig.user, pass: smtpConfig.pass },
-      ...mailTimeoutOptions
-    } : {
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587', 10),
-      secure: parseInt(process.env.SMTP_PORT, 10) === 465,
-      auth: {
-        user: process.env.SMTP_USER || process.env.EMAIL_USER,
-        pass: process.env.SMTP_PASS || process.env.EMAIL_PASS
-      },
-      ...mailTimeoutOptions
-    };
-
-    const transporter = nodemailer.createTransport(transportConfig);
-    const fromEmail = smtpConfig?.fromEmail || process.env.SMTP_USER || process.env.EMAIL_USER;
-    const fromName = smtpConfig?.fromName || process.env.COMPANY_NAME || 'FinOps HR';
+    const fromName = process.env.COMPANY_NAME || 'FinOps HR';
+    const fromEmail = process.env.RESEND_FROM || process.env.EMAIL_FROM || 'FinOps HR <onboarding@resend.dev>';
     const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
     const { generateSalarySlipPDF } = require('../utils/salarySlipPDF');
@@ -526,8 +473,8 @@ router.post('/runs/:id/email-slips', async (req, res) => {
 
         const html = `<div style="font-family:Arial,sans-serif;">Dear <strong>${slip.employeeName}</strong>,<br>Your salary slip for ${monthNames[slip.month - 1]} ${slip.year} is attached as a PDF.<br><br>Regards,<br>${fromName}</div>`;
 
-        await transporter.sendMail({
-          from: `"${fromName}" <${fromEmail}>`,
+        await sendEmail({
+          from: fromEmail,
           to: slip.employeeEmail,
           subject: `Salary Slip - ${monthNames[slip.month - 1]} ${slip.year}`,
           html,
