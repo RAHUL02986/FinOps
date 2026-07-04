@@ -3,9 +3,8 @@ const router = express.Router();
 const { protect } = require('../middleware/auth');
 const { authorize } = require('../middleware/roleCheck');
 const { Proposal, ProposalTemplate } = require('../models/Proposal');
-const SmtpConfig = require('../models/SmtpConfig');
-const nodemailer = require('nodemailer');
 const multer = require('multer');
+const { sendEmail } = require('../utils/resendMailer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
@@ -28,15 +27,6 @@ const upload = multer({
 // Protect all routes down this line
 router.use(protect);
 
-// Shared network timeout controls to prevent 2-minute server freezes on Render free tier
-const mailTimeoutOptions = {
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
-  tls: {
-    rejectUnauthorized: false // Bypasses strict local SSL errors on Linux/Render instances
-  }
-};
 
 // ====== TEMPLATES ======
 
@@ -204,30 +194,8 @@ router.post('/:id/send', authorize('superadmin', 'admin', 'manager'), async (req
       }
     }
 
-    // Fallback checks matching invoice rules
-    let smtpConfig = await SmtpConfig.findOne({ type: 'invoice', isActive: true });
-    if (!smtpConfig) smtpConfig = await SmtpConfig.findOne({ type: 'system', isActive: true });
-
-    const transportConfig = smtpConfig ? {
-      host: smtpConfig.host,
-      port: Number(smtpConfig.port),
-      secure: Number(smtpConfig.port) === 465,
-      auth: { user: smtpConfig.user, pass: smtpConfig.pass },
-      ...mailTimeoutOptions
-    } : {
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587', 10),
-      secure: parseInt(process.env.SMTP_PORT, 10) === 465,
-      auth: {
-        user: process.env.SMTP_USER || process.env.EMAIL_USER,
-        pass: process.env.SMTP_PASS || process.env.EMAIL_PASS
-      },
-      ...mailTimeoutOptions
-    };
-
-    const transporter = nodemailer.createTransport(transportConfig);
-    const fromEmail = smtpConfig?.fromEmail || process.env.SMTP_USER || process.env.EMAIL_USER;
-    const fromName = smtpConfig?.fromName || proposal.company.name || process.env.COMPANY_NAME || 'FinOps';
+    const fromEmail = process.env.RESEND_FROM || process.env.EMAIL_FROM || 'FinOps <onboarding@resend.dev>';
+    const fromName = proposal.company.name || process.env.COMPANY_NAME || 'FinOps';
 
     // Build template segments dynamically
     const bgColor = proposal.backgroundColor || '#ffffff';
@@ -322,7 +290,7 @@ router.post('/:id/send', authorize('superadmin', 'admin', 'manager'), async (req
       </div>`;
 
     const mailOptions = {
-      from: `"${fromName}" <${fromEmail}>`,
+      from: `${fromName} <${fromEmail}>`,
       to: clientEmail,
       subject: `Proposal: ${proposal.title} (${proposal.proposalNumber})`,
       html
@@ -330,20 +298,22 @@ router.post('/:id/send', authorize('superadmin', 'admin', 'manager'), async (req
 
     if (ccList && ccList.length > 0) mailOptions.cc = ccList;
 
-    // Safely look up asset path from execution root
+    const attachments = [];
     if (proposal.company.logo) {
-      // Strips leading slash from asset path if present
       const cleanLogoPath = proposal.company.logo.startsWith('/') ? proposal.company.logo.substring(1) : proposal.company.logo;
       const logoPath = path.join(process.cwd(), cleanLogoPath);
-      
+
       if (fs.existsSync(logoPath)) {
-        mailOptions.attachments = [{ filename: 'logo.png', path: logoPath, cid: 'companyLogo' }];
+        attachments.push({ filename: 'logo.png', path: logoPath, contentType: 'image/png' });
       } else {
         console.warn(`[WARN] Logo resource missing at designated lookup pathway: ${logoPath}`);
       }
     }
 
-    await transporter.sendMail(mailOptions);
+    await sendEmail({
+      ...mailOptions,
+      attachments,
+    });
 
     proposal.status = 'sent';
     proposal.sentAt = new Date();

@@ -6,8 +6,7 @@ console.log("[Scheduler] Script started: recurringExpenseReminder.js");
 const mongoose = require('mongoose');
 const RecurringExpense = require('../models/RecurringExpense');
 const User = require('../models/User');
-const SmtpConfig = require('../models/SmtpConfig');
-const nodemailer = require('nodemailer');
+const { sendEmail } = require('../utils/resendMailer');
 
 // Set up process crash dampeners
 process.on('uncaughtException', (err) => {
@@ -20,15 +19,6 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1);
 });
 
-// Shared safe network timeout configurations to protect background workers
-const mailTimeoutOptions = {
-  connectionTimeout: 10000, // 10 seconds max to open socket
-  greetingTimeout: 10000,   // 10 seconds max to receive greeting banner
-  socketTimeout: 15000,     // 15 seconds max inactivity threshold
-  tls: {
-    rejectUnauthorized: false // Bypasses self-signed certificate errors on cloud containers
-  }
-};
 
 async function sendRecurringExpenseReminders() {
   let ownConnection = false;
@@ -51,30 +41,8 @@ async function sendRecurringExpenseReminders() {
       return;
     }
 
-    // 3. Resolve unified SMTP configuration from database or fallback to environment variables
-    let smtpConfig = await SmtpConfig.findOne({ type: 'system', isActive: true });
-    if (!smtpConfig) smtpConfig = await SmtpConfig.findOne({ type: 'invoice', isActive: true });
-
-    const transportConfig = smtpConfig ? {
-      host: smtpConfig.host,
-      port: Number(smtpConfig.port),
-      secure: Number(smtpConfig.port) === 465,
-      auth: { user: smtpConfig.user, pass: smtpConfig.pass },
-      ...mailTimeoutOptions
-    } : {
-      host: process.env.SMTP_HOST || 'smtp.example.com',
-      port: parseInt(process.env.SMTP_PORT || '587', 10),
-      secure: parseInt(process.env.SMTP_PORT, 10) === 465,
-      auth: {
-        user: process.env.SMTP_USER || 'user@example.com',
-        pass: process.env.SMTP_PASS || 'password'
-      },
-      ...mailTimeoutOptions
-    };
-
-    const transporter = nodemailer.createTransport(transportConfig);
-    const fromEmail = smtpConfig?.fromEmail || process.env.SMTP_USER || 'noreply@example.com';
-    const fromName = smtpConfig?.fromName || process.env.COMPANY_NAME || 'FinOps Automations';
+    const fromEmail = process.env.RESEND_FROM || process.env.EMAIL_FROM || 'FinOps Automations <onboarding@resend.dev>';
+    const fromName = process.env.COMPANY_NAME || 'FinOps Automations';
 
     // 4. Iterate over active records
     for (const exp of expenses) {
@@ -103,8 +71,8 @@ async function sendRecurringExpenseReminders() {
 
         for (const admin of admins) {
           try {
-            await transporter.sendMail({
-              from: `"${fromName}" <${fromEmail}>`,
+            await sendEmail({
+              from: `${fromName} <${fromEmail}>`,
               to: admin.email,
               subject: `Recurring Expense Reminder: ${exp.title}`,
               text: `Dear Admin,\n\nYour recurring expense "${exp.title}" (amount: ₹${exp.amount}) is due in ${exp.reminderDaysBefore} days (on ${dueDate.toDateString()}).\n\nPlease review and process this expense accordingly.\n\n--\nAutomated System Reminder`,

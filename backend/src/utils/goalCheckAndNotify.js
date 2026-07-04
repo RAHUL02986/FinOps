@@ -1,18 +1,8 @@
 const Goal = require('../models/Goal');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
-const SmtpConfig = require('../models/SmtpConfig');
-const nodemailer = require('nodemailer');
+const { sendEmail } = require('./resendMailer');
 
-// Shared safe network timeout thresholds to avoid stalling API transaction streams
-const mailTimeoutOptions = {
-  connectionTimeout: 10000, // 10 seconds max to establish connection
-  greetingTimeout: 10000,   // 10 seconds max to wait for greeting
-  socketTimeout: 15000,     // 15 seconds max inactivity limit
-  tls: {
-    rejectUnauthorized: false // Bypasses local SSL check crashes on Linux containers
-  }
-};
 
 // Helper to reliably construct absolute calendar date boundaries
 function getPeriodRange(period, refDate) {
@@ -108,30 +98,8 @@ async function checkGoalsAndNotify(transaction) {
     if (goalsReachedList.length > 0 && admins.length > 0) {
       setImmediate(async () => {
         try {
-          // Pull setting configurations from centralized storage pools
-          let smtpConfig = await SmtpConfig.findOne({ type: 'system', isActive: true });
-          if (!smtpConfig) smtpConfig = await SmtpConfig.findOne({ type: 'invoice', isActive: true });
-
-          const transportConfig = smtpConfig ? {
-            host: smtpConfig.host,
-            port: Number(smtpConfig.port),
-            secure: Number(smtpConfig.port) === 465,
-            auth: { user: smtpConfig.user, pass: smtpConfig.pass },
-            ...mailTimeoutOptions
-          } : {
-            host: process.env.SMTP_HOST || 'smtp.example.com',
-            port: parseInt(process.env.SMTP_PORT || '587', 10),
-            secure: parseInt(process.env.SMTP_PORT, 10) === 465,
-            auth: {
-              user: process.env.SMTP_USER || 'user@example.com',
-              pass: process.env.SMTP_PASS || 'password'
-            },
-            ...mailTimeoutOptions
-          };
-
-          const transporter = nodemailer.createTransport(transportConfig);
-          const fromEmail = smtpConfig?.fromEmail || process.env.SMTP_USER || 'noreply@example.com';
-          const fromName = smtpConfig?.fromName || process.env.COMPANY_NAME || 'FinOps Automations';
+          const fromEmail = process.env.RESEND_FROM || process.env.EMAIL_FROM || 'FinOps Automations <onboarding@resend.dev>';
+          const fromName = process.env.COMPANY_NAME || 'FinOps Automations';
 
           // Asynchronously distribute mail notification loops to admins
           for (const item of goalsReachedList) {
@@ -140,8 +108,8 @@ async function checkGoalsAndNotify(transaction) {
                 const subject = `Goal Reached: ${item.goal.title}`;
                 const text = `Congratulations!\n\nThe goal "${item.goal.title}" (${item.goal.type}) for the period ${item.goal.period} has been reached.\n\nTarget: ₹${item.goal.targetAmount}\nAchieved: ₹${item.total}\n\n-- FinOps Tracker`;
 
-                await transporter.sendMail({
-                  from: `"${fromName}" <${fromEmail}>`,
+                await sendEmail({
+                  from: `${fromName} <${fromEmail}>`,
                   to: admin.email,
                   subject,
                   text,
