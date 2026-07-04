@@ -249,24 +249,35 @@ leadSchema.pre('save', async function(next) {
   if (this.team) {
     try {
       const Team = mongoose.model('Team');
-      const teamExists = await Team.exists({ _id: this.team });
-      if (!teamExists) {
-        return next(new Error('Selected team does not exist. Please select a valid team.'));
+      // If team is not a valid ObjectId, clear it
+      if (!mongoose.Types.ObjectId.isValid(this.team)) {
+        this.team = undefined;
+      } else {
+        const teamExists = await Team.exists({ _id: this.team });
+        if (!teamExists) {
+          // If referenced team was deleted or invalid, clear the reference instead of failing save
+          this.team = undefined;
+        }
       }
     } catch (err) {
-      return next(new Error('Error validating team reference.'));
+      // On unexpected errors, clear the team reference and continue
+      this.team = undefined;
     }
   }
   // Validate employee reference
   if (this.employee) {
     try {
       const User = mongoose.model('User');
-      const userExists = await User.exists({ _id: this.employee });
-      if (!userExists) {
-        return next(new Error('Selected employee does not exist. Please select a valid employee.'));
+      if (!mongoose.Types.ObjectId.isValid(this.employee)) {
+        this.employee = undefined;
+      } else {
+        const userExists = await User.exists({ _id: this.employee });
+        if (!userExists) {
+          this.employee = undefined;
+        }
       }
     } catch (err) {
-      return next(new Error('Error validating employee reference.'));
+      this.employee = undefined;
     }
   }
   if (this.isModified('leadStatus') && this.leadStatus === 'Converted Lead' && !this.convertedAt) {

@@ -67,6 +67,7 @@ const UserSchema = new mongoose.Schema({
     },
     email: {
       type: String,
+      trim: true,
       required: [true, 'Email is required'],
       unique: true,
       lowercase: true,
@@ -150,6 +151,33 @@ UserSchema.statics.generateEmployeeId = async function () {
 };
 
 UserSchema.pre('validate', async function (next) {
+  if (this.role === 'employee' && !this.employeeId) {
+    this.employeeId = await this.constructor.generateEmployeeId();
+  }
+  next();
+});
+
+// Shared email normalization 
+function normalizeUserEmail(email) {
+  if (!email || typeof email !== 'string') return email;
+  let normalized = email.trim().toLowerCase();
+  const [local, domain] = normalized.split('@');
+  if (!domain) return normalized;
+  const fixedDomain = domain === 'googlemail.com' ? 'gmail.com' : domain;
+  if (fixedDomain === 'gmail.com') {
+    const localBeforePlus = local.split('+')[0];
+    const dotless = localBeforePlus.replace(/\./g, '');
+    normalized = `${dotless}@${fixedDomain}`;
+  } else {
+    normalized = `${local}@${fixedDomain}`;
+  }
+  return normalized;
+}
+
+UserSchema.pre('validate', async function (next) {
+  if (this.isModified('email') && this.email) {
+    this.email = normalizeUserEmail(this.email);
+  }
   if (this.role === 'employee' && !this.employeeId) {
     this.employeeId = await this.constructor.generateEmployeeId();
   }

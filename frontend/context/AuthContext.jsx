@@ -29,6 +29,7 @@ export function AuthProvider({ children }) {
 
   // Enhanced login to handle OTP flow
   const login = async (email, password, otp) => {
+    console.log('AUTH login called', { email, password: password ? '********' : '(empty)', otp });
     if (otp) {
       // OTP verification step
       const res = await authAPI.verifyOtp({ email, otp });

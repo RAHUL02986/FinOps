@@ -438,6 +438,84 @@ router.post('/:id/activities', protect, async (req, res) => {
   }
 });
 
+// Update an activity on a lead
+router.put('/:id/activities/:activityId', protect, async (req, res) => {
+  try {
+    const { type, description } = req.body;
+    if (!type || !description) {
+      return res.status(400).json({ message: 'Activity type and description are required' });
+    }
+    const validTypes = ['call', 'email', 'meeting', 'note', 'other'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ message: 'Invalid activity type' });
+    }
+
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ message: 'Lead not found' });
+
+    const activity = lead.activityLog.id(req.params.activityId);
+    if (!activity) return res.status(404).json({ message: 'Activity not found' });
+
+    // Authorization: only performer or elevated roles can edit
+    const elevated = ['superadmin', 'admin', 'hr', 'manager'];
+    if (activity.performedBy && activity.performedBy.toString() !== req.user.id && !elevated.includes(req.user.role)) {
+      return res.status(403).json({ message: 'Not authorized to edit this activity' });
+    }
+
+    activity.type = type;
+    activity.description = description.trim();
+    // update timestamp to now to reflect edit (optional)
+    activity.performedAt = new Date();
+
+    await lead.save();
+
+    const populatedLead = await Lead.findById(lead._id)
+      .populate('createdBy', 'username email')
+      .populate('team', 'name')
+      .populate('employee', 'name email')
+      .populate('notes.addedBy', 'username email name')
+      .populate('comments.commentedBy', 'username email name')
+      .populate('activityLog.performedBy', 'username email name');
+
+    res.json(populatedLead);
+  } catch (error) {
+    console.error('Error updating activity:', error);
+    res.status(500).json({ message: 'Server error while updating activity' });
+  }
+});
+
+// Delete an activity from a lead
+router.delete('/:id/activities/:activityId', protect, async (req, res) => {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ message: 'Lead not found' });
+
+    const activity = lead.activityLog.id(req.params.activityId);
+    if (!activity) return res.status(404).json({ message: 'Activity not found' });
+
+    const elevated = ['superadmin', 'admin', 'hr', 'manager'];
+    if (activity.performedBy && activity.performedBy.toString() !== req.user.id && !elevated.includes(req.user.role)) {
+      return res.status(403).json({ message: 'Not authorized to delete this activity' });
+    }
+
+    activity.remove();
+    await lead.save();
+
+    const populatedLead = await Lead.findById(lead._id)
+      .populate('createdBy', 'username email')
+      .populate('team', 'name')
+      .populate('employee', 'name email')
+      .populate('notes.addedBy', 'username email name')
+      .populate('comments.commentedBy', 'username email name')
+      .populate('activityLog.performedBy', 'username email name');
+
+    res.json(populatedLead);
+  } catch (error) {
+    console.error('Error deleting activity:', error);
+    res.status(500).json({ message: 'Server error while deleting activity' });
+  }
+});
+
 // Get lead statistics
 router.get('/stats/overview', protect, async (req, res) => {
   try {

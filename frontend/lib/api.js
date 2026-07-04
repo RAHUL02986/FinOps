@@ -7,7 +7,23 @@ export const categoriesAPI = {
 };
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ;
+const getApiBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      return 'http://127.0.0.1:5000/api';
+    }
+    if (/^192\.168\./.test(hostname) || /^10\./.test(hostname)) {
+      return 'http://127.0.0.1:5000/api';
+    }
+  }
+
+  return 'http://127.0.0.1:5000/api';
+};
+
+const API_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_URL,
@@ -212,6 +228,8 @@ export const leadsAPI = {
   update: (id, data) => api.put(`/leads/${id}`, data),
   delete: (id) => api.delete(`/leads/${id}`),
   getStats: () => api.get('/leads/stats/overview'),
+  updateActivity: (leadId, activityId, data) => api.put(`/leads/${leadId}/activities/${activityId}`, data),
+  deleteActivity: (leadId, activityId) => api.delete(`/leads/${leadId}/activities/${activityId}`),
 };
 
 export default api;

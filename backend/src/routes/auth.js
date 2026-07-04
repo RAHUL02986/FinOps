@@ -9,6 +9,32 @@ const SmtpConfig = require('../models/SmtpConfig');
 const crypto = require('crypto');
 const OTP_EXPIRY_MINUTES = 10;
 
+const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+function normalizeUserEmail(email) {
+  if (!email || typeof email !== 'string') return email;
+  let normalized = email.trim().toLowerCase();
+  const [local, domain] = normalized.split('@');
+  if (!domain) return normalized;
+  const fixedDomain = domain === 'googlemail.com' ? 'gmail.com' : domain;
+  if (fixedDomain === 'gmail.com') {
+    const localBeforePlus = local.split('+')[0];
+    const dotless = localBeforePlus.replace(/\./g, '');
+    normalized = `${dotless}@${fixedDomain}`;
+  } else {
+    normalized = `${local}@${fixedDomain}`;
+  }
+  return normalized;
+}
+
+function gmailLocalRegex(email) {
+  const [local, domain] = email.split('@');
+  if (!domain || domain !== 'gmail.com') return null;
+  const escapedChars = local.split('').map(ch => escapeRegExp(ch));
+  const regexString = `^${escapedChars.join('\\.?')}@gmail\\.com$`;
+  return new RegExp(regexString, 'i');
+}
+
 // In-memory OTP store (Note: For absolute reliability on Render free tier, migrate this to MongoDB fields later!)
 const otpStore = {};
 
@@ -20,12 +46,43 @@ const generateToken = (id) =>
     expiresIn: process.env.JWT_EXPIRE || '7d',
   });
 
-// Shared timeout config to prevent 2-minute server freezes on Render
 const mailTimeoutOptions = {
-  connectionTimeout: 10000, // 10 seconds
+  connectionTimeout: 10000, 
   greetingTimeout: 10000,
   socketTimeout: 15000,
 };
+
+function getSmtpEnv() {
+  return {
+    user: process.env.SMTP_USER || process.env.EMAIL_USER || '',
+    pass: process.env.SMTP_PASS || process.env.EMAIL_PASS || '',
+    from: process.env.SMTP_FROM || process.env.EMAIL_FROM || process.env.SMTP_USER || process.env.EMAIL_USER || '',
+    host: process.env.SMTP_HOST || process.env.EMAIL_HOST || 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT || process.env.EMAIL_PORT || '587'),
+  };
+}
+
+function createTransporterFromConfig(smtpConfig) {
+  return nodemailer.createTransport({
+    host: smtpConfig.host,
+    port: Number(smtpConfig.port),
+    secure: Number(smtpConfig.port) === 465,
+    auth: { user: smtpConfig.user, pass: smtpConfig.pass },
+    tls: { rejectUnauthorized: false },
+    ...mailTimeoutOptions,
+  });
+}
+
+function createTransporterFromEnv(envConfig) {
+  return nodemailer.createTransport({
+    host: envConfig.host,
+    port: envConfig.port,
+    secure: envConfig.port === 465,
+    auth: { user: envConfig.user, pass: envConfig.pass },
+    tls: { rejectUnauthorized: false },
+    ...mailTimeoutOptions,
+  });
+}
 
 // POST /api/auth/register
 router.post(
@@ -43,13 +100,14 @@ router.post(
 
     try {
       const { name, email, password } = req.body;
+      const normalizedEmail = normalizeUserEmail(email);
 
-      const exists = await User.findOne({ email });
+      const exists = await User.findOne({ email: normalizedEmail });
       if (exists) {
         return res.status(400).json({ success: false, message: 'Email already registered' });
       }
 
-      const user = await User.create({ name, email, password });
+      const user = await User.create({ name, email: normalizedEmail, password });
       const token = generateToken(user._id);
 
       res.status(201).json({
@@ -90,10 +148,16 @@ router.post(
 
     try {
       let { email, password } = req.body;
-      email = email.trim().toLowerCase();
-      const user = await User.findOne({ email }).select('+password');
-      
-      console.log('LOGIN ATTEMPT:', { email, found: !!user, role: user?.role });
+      const originalEmail = email;
+      email = normalizeUserEmail(email);
+      let user = await User.findOne({ email }).select('+password');
+      if (!user && email.endsWith('@gmail.com')) {
+        const regex = gmailLocalRegex(email);
+        if (regex) {
+          user = await User.findOne({ email: { $regex: regex } }).select('+password');
+        }
+      }
+      console.log('LOGIN ATTEMPT:', { originalEmail, normalizedEmail: email, found: !!user, role: user?.role });
       if (!user) {
         console.log('LOGIN RESULT: user not found');
         return res.status(401).json({ success: false, message: 'Unauthorized credentials' });
@@ -123,7 +187,8 @@ router.post(
         // Generate OTP
         const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
         const expiresAt = Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000;
-        otpStore[user.email] = { otp, expiresAt };
+        const otpEmail = normalizeUserEmail(user.email);
+        otpStore[otpEmail] = { otp, expiresAt };
 
         // Find admin email (first active admin)
         const adminUser = await User.findOne({ role: 'admin', isActive: true });
@@ -139,27 +204,18 @@ router.post(
 
         if (smtpConfig) {
           senderEmail = smtpConfig.fromEmail || smtpConfig.user;
-          transporter = nodemailer.createTransport({
-            host: smtpConfig.host,            
-            port: Number(smtpConfig.port), 
-            secure: Number(smtpConfig.port) === 464 || Number(smtpConfig.port) === 465, 
-            auth: { user: smtpConfig.user, pass: smtpConfig.pass },
-            tls: { rejectUnauthorized: false },
-            ...mailTimeoutOptions
-          });
+          transporter = createTransporterFromConfig(smtpConfig);
         } else {
-          senderEmail = process.env.SMTP_FROM || process.env.SMTP_USER;
-          transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST || 'smtp.gmail.com',
-            port: Number(process.env.SMTP_PORT) || 587,
-            secure: Number(process.env.SMTP_PORT) === 465,
-            auth: {
-              user: process.env.SMTP_USER,
-              pass: process.env.SMTP_PASS,
-            },
-            tls: { rejectUnauthorized: false },
-            ...mailTimeoutOptions
-          });
+          const envConfig = getSmtpEnv();
+          senderEmail = envConfig.from || envConfig.user;
+          if (!envConfig.user || !envConfig.pass) {
+            console.error('SMTP env missing user/pass for OTP email');
+            return res.status(500).json({
+              success: false,
+              message: 'Failed to send verification OTP mail. SMTP credentials are not configured.',
+            });
+          }
+          transporter = createTransporterFromEnv(envConfig);
         }
 
         try {
@@ -182,7 +238,7 @@ router.post(
           success: true,
           otpRequired: true,
           message: 'OTP sent to admin email. Please enter the OTP to continue.',
-          user: { email: user.email },
+          user: { email: otpEmail },
         });
       }
 
@@ -216,12 +272,13 @@ router.post('/verify-otp', (req, res, next) => {
   next();
 }, async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    let { email, otp } = req.body;
     console.log(`[DEBUG] Verifying OTP for email: ${email}, otp: ${otp}`);
     
     if (!email || !otp) {
       return res.status(400).json({ success: false, message: 'Email and OTP are required' });
     }
+    email = normalizeUserEmail(email);
     
     const record = otpStore[email];
     if (!record || record.otp !== otp) {
@@ -237,15 +294,21 @@ router.post('/verify-otp', (req, res, next) => {
     delete otpStore[email];
     
     // Find user
-    const user = await User.findOne({ email });
+    let user = await User.findOne({ email });
+    if (!user && email.endsWith('@gmail.com')) {
+      const regex = gmailLocalRegex(email);
+      if (regex) {
+        user = await User.findOne({ email: { $regex: regex } });
+      }
+    }
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    
+
     // Mark as verified for future sessions
     user.isVerified = true;
     await user.save();
-    
+
     const token = generateToken(user._id);
     res.json({
       success: true,
@@ -260,7 +323,7 @@ router.post('/verify-otp', (req, res, next) => {
         employmentType: user.employmentType,
         joiningDate: user.joiningDate,
         experienceYears: user.experienceYears,
-        profileImage: user.profileImage
+        profileImage: user.profileImage,
       },
     });
   } catch (error) {

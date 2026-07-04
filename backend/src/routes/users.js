@@ -5,6 +5,22 @@ const Team = require('../models/Team');
 const { protect } = require('../middleware/auth');
 const { authorize } = require('../middleware/roleCheck');
 
+function normalizeUserEmail(email) {
+  if (!email || typeof email !== 'string') return email;
+  let normalized = email.trim().toLowerCase();
+  const [local, domain] = normalized.split('@');
+  if (!domain) return normalized;
+  const fixedDomain = domain === 'googlemail.com' ? 'gmail.com' : domain;
+  if (fixedDomain === 'gmail.com') {
+    const localBeforePlus = local.split('+')[0];
+    const dotless = localBeforePlus.replace(/\./g, '');
+    normalized = `${dotless}@${fixedDomain}`;
+  } else {
+    normalized = `${local}@${fixedDomain}`;
+  }
+  return normalized;
+}
+
 const router = express.Router();
 router.use(protect);
 
@@ -80,8 +96,9 @@ router.post(
         employeeId = '', fatherName = '', motherName = '', alternateMobile = '', 
         aadhaar = '', department = '', teamId 
       } = req.body;
+      const normalizedEmail = normalizeUserEmail(email);
 
-      const exists = await User.findOne({ email });
+      const exists = await User.findOne({ email: normalizedEmail });
       if (exists) {
         return res.status(400).json({ success: false, message: 'Email already registered' });
       }
@@ -90,7 +107,7 @@ router.post(
       const cleanDepartment = department ? department.trim() : '';
 
       const user = await User.create({ 
-        name, email, password, role, designation, phone, sector, 
+        name, email: normalizedEmail, password, role, designation, phone, sector, 
         employmentType, joiningDate, experienceYears: Number(experienceYears),
         employeeId, fatherName, motherName, alternateMobile, aadhaar, 
         department: cleanDepartment
@@ -143,7 +160,7 @@ router.put('/:id', async (req, res) => {
     if (alternateMobile !== undefined) user.alternateMobile = alternateMobile;
     if (aadhaar !== undefined) user.aadhaar = aadhaar;
     if (cleanDepartment !== undefined) user.department = cleanDepartment;
-    if (email !== undefined) user.email = email;
+    if (email !== undefined) user.email = normalizeUserEmail(email);
     if (role !== undefined) user.role = role;
     if (designation !== undefined) user.designation = designation;
     if (phone !== undefined) user.phone = phone;

@@ -80,14 +80,16 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const result = await login(formData.email, formData.password);
+      const normalizedEmail = formData.email.trim().toLowerCase();
+      console.log('LOGIN FORM SUBMIT', { email: normalizedEmail, password: formData.password ? '********' : '(empty)' });
+      const result = await login(normalizedEmail, formData.password);
       if (result.otpRequired) {
         setOtpStep(true);
         setOtpEmail(result.email);
         setError('');
       } else if (result.user) {
-        if (result.user.role === 'lead') {
-          router.push('/leads');
+          if (result.user.role === 'lead') {
+            router.push('/leads');
         } else if (result.user.role === 'dataentry') {
           router.push('/transactions');
         } else {
@@ -110,6 +112,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
+      console.log('LOGIN OTP SUBMIT', { email: otpEmail, otp });
       const result = await login(otpEmail, undefined, otp);
       if (result.user) {
         if (result.user.role === 'lead') {

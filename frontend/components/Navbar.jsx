@@ -26,6 +26,7 @@ const PAGE_TITLES = {
   '/settings': 'Settings',
     '/admin': 'Admin',
   '/admin/users': 'User Management',
+  '/leads': 'Leads',
 };
 
 const fmtRelative = (d) => {
@@ -196,7 +197,7 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
                     } else if (n.type === 'proposal_notification') {
                       link = '/proposals';
                     } else if (n.type === 'lead_notification') {
-                      link = '/leads';
+                              link = '/leads';
                     } else if (n.type === 'task_assigned' || n.type === 'task_updated' || n.type === 'status_changed' || n.type === 'comment_added') {
                       link = '/tasks';
                     }

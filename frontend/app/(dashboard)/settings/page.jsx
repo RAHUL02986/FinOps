@@ -37,6 +37,9 @@ const SMTP_TYPES = [
 export default function SettingsPage() {
     // Users & Roles state (fetched from backend)
     const [users, setUsers] = useState([]);
+    // Pagination for users
+    const [currentPage, setCurrentPage] = useState(1);
+    const PER_PAGE = 5;
   const { user, updateUser } = useAuth();
   const [tab, setTab] = useState('categories');
   // SMTP state
@@ -61,11 +64,38 @@ export default function SettingsPage() {
     // TODO: fetch notifications as needed
   }, [tab, user]);
 
+  // Reset page when users list changes
+  useEffect(() => {
+    if (currentPage > 1 && users.length <= (currentPage - 1) * PER_PAGE) {
+      setCurrentPage(1);
+    }
+  }, [users, currentPage]);
+
   // Fetch users from backend
   const fetchUsers = async () => {
     try {
       const res = await usersAPI.getAll();
-      setUsers(res.data.data || []);
+      const fetched = res.data.data || [];
+      // Role priority: lower number = higher priority (comes first)
+      const rolePriority = {
+        superadmin: 0,
+        admin: 1,
+        hr: 2,
+        manager: 3,
+        lead: 4,
+        dataentry: 5,
+        employee: 6,
+      };
+      const sorted = fetched.slice().sort((a, b) => {
+        const pa = rolePriority[a.role] ?? 99;
+        const pb = rolePriority[b.role] ?? 99;
+        if (pa !== pb) return pa - pb;
+        // fallback: sort by name
+        return (a.name || '').localeCompare(b.name || '');
+      });
+      setUsers(sorted);
+      // ensure pagination shows top users first
+      setCurrentPage(1);
     } catch (err) {
       const msg = err?.response?.data?.message || err?.response?.data?.error || err.message || 'Failed to load users';
       toast.error(`Failed to load users: ${msg}`);
@@ -158,6 +188,17 @@ export default function SettingsPage() {
     }
   };
 
+  const handleDeleteCategory = async (id) => {
+    if (!confirm('Delete this category?')) return;
+    try {
+      await categoriesAPI.remove(id);
+      setCategories((prev) => prev.filter((cat) => cat._id !== id));
+      toast.success('Category deleted');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete category');
+    }
+  };
+
   return (
     <div className="p-0 md:p-6 max-w-5xl mx-auto">
       <div className="mb-6">
@@ -194,23 +235,31 @@ export default function SettingsPage() {
           </div>
           <div>
             {categories.map((cat, i) => (
-              <div key={cat._id} className="flex items-center justify-between border-b last:border-b-0 py-3">
+              <div key={cat._id} className="flex flex-col sm:flex-row sm:items-center justify-between border-b last:border-b-0 py-3 gap-3">
                 <div className="font-medium text-gray-900 flex items-center gap-2">
                   {cat.name}
                   <span className={`text-xs px-2 py-0.5 rounded border ${cat.type === 'Income' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-700'}`}>{cat.type}</span>
                 </div>
-                <label className="flex items-center gap-3 cursor-pointer relative select-none">
-                  <input
-                    type="checkbox"
-                    checked={cat.active}
-                    onChange={() => handleToggleActive(cat, i)}
-                    className="sr-only"
-                  />
-                  <div className={`w-11 h-6 flex items-center rounded-full p-1 duration-300 border ${cat.active ? 'bg-green-500 border-green-500' : 'bg-gray-300 border-gray-300'}`}>
-                    <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-300 ${cat.active ? 'translate-x-5' : ''}`}></div>
-                  </div>
-                  <span className={`ml-2 text-xs font-semibold ${cat.active ? 'text-green-600' : 'text-gray-400'}`}>{cat.active ? 'Active' : 'Inactive'}</span>
-                </label>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-3 cursor-pointer relative select-none">
+                    <input
+                      type="checkbox"
+                      checked={cat.active}
+                      onChange={() => handleToggleActive(cat, i)}
+                      className="sr-only"
+                    />
+                    <div className={`w-11 h-6 flex items-center rounded-full p-1 duration-300 border ${cat.active ? 'bg-green-500 border-green-500' : 'bg-gray-300 border-gray-300'}`}>
+                      <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-300 ${cat.active ? 'translate-x-5' : ''}`}></div>
+                    </div>
+                    <span className={`ml-2 text-xs font-semibold ${cat.active ? 'text-green-600' : 'text-gray-400'}`}>{cat.active ? 'Active' : 'Inactive'}</span>
+                  </label>
+                  <button
+                    onClick={() => handleDeleteCategory(cat._id)}
+                    className="px-3 py-1.5 text-sm bg-red-50 text-red-600 hover:bg-red-100 rounded-lg"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -350,7 +399,10 @@ export default function SettingsPage() {
             <p className="text-gray-400 text-sm">Manage user roles and permissions.</p>
           </div>
           <div className="space-y-3 mb-6">
-            {users.map((u, idx) => (
+            {(() => {
+              const totalPages = Math.max(1, Math.ceil(users.length / PER_PAGE));
+              const paginatedUsers = users.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
+              return paginatedUsers.map((u, idx) => (
               <div key={u._id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b last:border-b-0 py-3 gap-2 bg-gray-50 rounded-lg px-4">
                 <div>
                   <div className="font-medium text-gray-900">{u.name}</div>
@@ -374,7 +426,8 @@ export default function SettingsPage() {
                         isActive: u.isActive !== undefined ? u.isActive : true,
                         role: newRole
                       });
-                      setUsers(prev => prev.map((user, i) => i === idx ? { ...user, role: newRole } : user));
+                      // Update by id so pagination ordering doesn't break updates
+                      setUsers(prev => prev.map(user => user._id === u._id ? { ...user, role: newRole } : user));
                       toast.success(`Role updated to ${newRole}`);
                     } catch (err) {
                       toast.error('Failed to update role.');
@@ -384,8 +437,22 @@ export default function SettingsPage() {
                   {roleOptions.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
               </div>
-            ))}
+              ));
+            })()}
           </div>
+          {/* Pagination controls */}
+          {users.length > PER_PAGE && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-gray-500">Showing {(users.length === 0) ? 0 : (Math.min(users.length, (currentPage - 1) * PER_PAGE + 1))} - {Math.min(users.length, currentPage * PER_PAGE)} of {users.length}</div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 bg-white border rounded disabled:opacity-50">Prev</button>
+                {Array.from({ length: Math.max(1, Math.ceil(users.length / PER_PAGE)) }).map((_, i) => (
+                  <button key={i} onClick={() => setCurrentPage(i + 1)} className={`px-3 py-1 border rounded ${currentPage === i + 1 ? 'bg-indigo-600 text-white' : 'bg-white'}`}>{i + 1}</button>
+                ))}
+                <button onClick={() => setCurrentPage(p => Math.min(Math.ceil(users.length / PER_PAGE), p + 1))} disabled={currentPage === Math.ceil(users.length / PER_PAGE)} className="px-3 py-1 bg-white border rounded disabled:opacity-50">Next</button>
+              </div>
+            </div>
+          )}
           <div className="bg-gray-50 rounded-lg p-4 mt-6">
             <h3 className="font-semibold text-gray-800 mb-2 text-sm">Role Permissions</h3>
             <ul className="text-xs text-gray-700 space-y-1">

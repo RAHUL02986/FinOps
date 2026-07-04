@@ -148,7 +148,7 @@ const TEMPERATURE_COLORS = {
 };
 
 
-export default function LeadsPage() {
+export default function LeadsPage({ leadOnly = false }) {
     const [detailLead, setDetailLead] = useState(null);
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('leads');
@@ -167,6 +167,9 @@ export default function LeadsPage() {
   // For comments and activities
   const [newComment, setNewComment] = useState('');
   const [newActivity, setNewActivity] = useState({ type: 'call', description: '' });
+  const [editActivityId, setEditActivityId] = useState(null);
+  const [editActivityType, setEditActivityType] = useState('call');
+  const [editActivityDescription, setEditActivityDescription] = useState('');
   const [newNote, setNewNote] = useState('');
   // For team/employee selection
   const [teams, setTeams] = useState([]);
@@ -175,6 +178,9 @@ export default function LeadsPage() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [showTagDropdown, setShowTagDropdown] = useState(false);
   const tagDropdownRef = useRef(null);
+  // Action menu state for per-lead overflow menu
+  const [openActionId, setOpenActionId] = useState(null);
+  const actionMenuRef = useRef(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -232,16 +238,19 @@ export default function LeadsPage() {
       if (tagDropdownRef.current && !tagDropdownRef.current.contains(event.target)) {
         setShowTagDropdown(false);
       }
+      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target)) {
+        setOpenActionId(null);
+      }
     };
 
-    if (showTagDropdown) {
+    if (showTagDropdown || openActionId) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showTagDropdown]);
+  }, [showTagDropdown, openActionId]);
 
   // Fetch all users for employee dropdown and tags
   useEffect(() => {
@@ -757,6 +766,14 @@ export default function LeadsPage() {
                     {lead.projectDescription}
                   </div>
                   <div className="text-xs text-gray-500">{lead.technologyStack}</div>
+                  {/* Tags */}
+                  {lead.tags && (Array.isArray(lead.tags) ? lead.tags : (typeof lead.tags === 'string' ? lead.tags.split(',') : [])).length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {(Array.isArray(lead.tags) ? lead.tags : (typeof lead.tags === 'string' ? lead.tags.split(',') : [])).map((t, i) => (
+                        <span key={i} className="text-xs bg-gray-100 text-gray-800 px-2 py-0.5 rounded">{t.trim()}</span>
+                      ))}
+                    </div>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -809,28 +826,34 @@ export default function LeadsPage() {
                   ) : '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <button
-                    onClick={() => setDetailLead(lead)}
-                    className="text-indigo-600 hover:text-indigo-900 mr-3"
-                  >
-                    View
-                  </button>
-                  {lead.leadStatus !== 'Converted Lead' && (
-                    <>
-                      <button
-                        onClick={() => handleEdit(lead)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(lead._id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
-                    </>
-                  )}
+                  <div className="relative" ref={openActionId === lead._id ? actionMenuRef : null}>
+                    <button
+                      onClick={() => setOpenActionId(openActionId === lead._id ? null : lead._id)}
+                      className="p-2 rounded hover:bg-gray-100"
+                      aria-label="Open actions"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-gray-600">
+                        <circle cx="5" cy="12" r="2" fill="currentColor" />
+                        <circle cx="12" cy="12" r="2" fill="currentColor" />
+                        <circle cx="19" cy="12" r="2" fill="currentColor" />
+                      </svg>
+                    </button>
+                    {openActionId === lead._id && (
+                      <div className="absolute right-0 mt-2 w-48 bg-white border rounded shadow z-50">
+                        <button onClick={() => { setDetailLead(lead); setOpenActionId(null); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50">View</button>
+                        {lead.clientEmail && (
+                          <a href={`mailto:${lead.clientEmail}`} onClick={() => setOpenActionId(null)} className="block px-3 py-2 text-sm hover:bg-gray-50">Email</a>
+                        )}
+                        {lead.clientPhone && (
+                          <a href={`tel:${lead.clientPhone}`} onClick={() => setOpenActionId(null)} className="block px-3 py-2 text-sm hover:bg-gray-50">Call</a>
+                        )}
+                        {lead.leadStatus !== 'Converted Lead' && (
+                          <button onClick={() => { handleEdit(lead); setOpenActionId(null); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50">Edit</button>
+                        )}
+                        <button onClick={() => { if (confirm('Are you sure you want to delete this lead?')) { handleDelete(lead._id); } setOpenActionId(null); }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-gray-50">Delete</button>
+                      </div>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))
@@ -850,30 +873,32 @@ export default function LeadsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
-        <nav className="-mb-px flex space-x-8">
-          <button
-            onClick={() => setActiveTab('leads')}
-            className={`${
-              activeTab === 'leads'
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-          >
-            Leads
-          </button>
-          <button
-            onClick={() => setActiveTab('converted')}
-            className={`${
-              activeTab === 'converted'
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-          >
-            Converted Leads
-          </button>
-        </nav>
-      </div>
+      {!leadOnly && (
+        <div className="border-b border-gray-200 mb-6">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('leads')}
+              className={`${
+                activeTab === 'leads'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Leads
+            </button>
+            <button
+              onClick={() => setActiveTab('converted')}
+              className={`${
+                activeTab === 'converted'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Converted Leads
+            </button>
+          </nav>
+        </div>
+      )}
 
       {/* Filters and Add Button */}
       <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
@@ -1042,17 +1067,69 @@ export default function LeadsPage() {
               <h3 className="font-semibold text-lg mb-3 text-gray-700">Activity Log</h3>
               <div className="space-y-3 max-h-60 overflow-y-auto mb-4">
                 {detailLead.activityLog && detailLead.activityLog.length > 0 ? (
-                  detailLead.activityLog.map((activity, idx) => (
-                    <div key={idx} className="bg-white p-3 rounded border">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs uppercase">{activity.type}</span>
-                        <p className="text-gray-800">{activity.description}</p>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        By {activity.performedBy?.name || activity.performedBy?.username || 'Unknown'} on {new Date(activity.performedAt).toLocaleString()}
-                      </p>
+                  detailLead.activityLog.map((activity, idx) => {
+                    const aid = activity._id || activity.id || idx;
+                    const perfId = activity.performedBy && (activity.performedBy._id || activity.performedBy);
+                    const canEdit = (perfId && perfId.toString() === (user?.id || user?._id)) || ['superadmin','admin','hr','manager'].includes(user?.role);
+                    return (
+                    <div key={aid} className="bg-white p-3 rounded border">
+                      {editActivityId === aid ? (
+                        <div className="flex flex-col gap-2">
+                          <select value={editActivityType} onChange={e => setEditActivityType(e.target.value)} className="px-3 py-2 border rounded w-40">
+                            <option value="call">Call</option>
+                            <option value="email">Email</option>
+                            <option value="meeting">Meeting</option>
+                            <option value="note">Note</option>
+                            <option value="other">Other</option>
+                          </select>
+                          <input value={editActivityDescription} onChange={e => setEditActivityDescription(e.target.value)} className="px-3 py-2 border rounded" />
+                          <div className="flex gap-2">
+                            <button className="px-3 py-1 bg-indigo-600 text-white rounded" onClick={async () => {
+                              try {
+                                const res = await leadsAPI.updateActivity(detailLead._id, aid, { type: editActivityType, description: editActivityDescription });
+                                setDetailLead(res.data || res.data?.data || res);
+                                setEditActivityId(null);
+                                setEditActivityDescription('');
+                                setEditActivityType('call');
+                                toast.success('Activity updated');
+                              } catch (err) {
+                                console.error('Update activity error', err);
+                                toast.error('Failed to update activity');
+                              }
+                            }}>Save</button>
+                            <button className="px-3 py-1 bg-gray-200 rounded" onClick={() => setEditActivityId(null)}>Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs uppercase">{activity.type}</span>
+                            <p className="text-gray-800">{activity.description}</p>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            By {activity.performedBy?.name || activity.performedBy?.username || 'Unknown'} on {new Date(activity.performedAt).toLocaleString()}
+                          </p>
+                          {canEdit && (
+                            <div className="mt-2 flex gap-2">
+                              <button onClick={() => { setEditActivityId(aid); setEditActivityType(activity.type); setEditActivityDescription(activity.description); }} className="text-sm text-blue-600">Edit</button>
+                              <button onClick={async () => {
+                                if (!confirm('Delete this activity?')) return;
+                                try {
+                                  const res = await leadsAPI.deleteActivity(detailLead._id, aid);
+                                  setDetailLead(res.data || res.data?.data || res);
+                                  toast.success('Activity deleted');
+                                } catch (err) {
+                                  console.error('Delete activity error', err);
+                                  toast.error('Failed to delete activity');
+                                }
+                              }} className="text-sm text-red-600">Delete</button>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <p className="text-gray-500">No activities logged</p>
                 )}
